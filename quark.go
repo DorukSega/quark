@@ -62,12 +62,13 @@ func main() {
 		}
 
 		// Write the first byte (0) to the file
-		write_n, err := file.Write([]byte{0})
+		var first_byte uint8 = 0
+		err = binary.Write(file, binary.LittleEndian, first_byte)
 		if err != nil {
 			log.Fatal("[MAIN] Error writing to database: ", err)
 		}
 		// move cursor after first byte
-		cursor_position += int64(write_n)
+		cursor_position += binary_size(first_byte)
 
 		// start the repl
 		repl(file, &db_structure)
@@ -124,8 +125,12 @@ ReadLoop:
 		scanner.Scan()
 		command := scanner.Text()
 		if strings.HasPrefix(command, "read") {
-			//readFile()
-			fmt.Println("todo read ")
+			args := strings.Split(command, " ")
+			if len(args) != 2 {
+				fmt.Println("open <filenane>")
+				continue ReadLoop
+			}
+			read(file, db, args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
@@ -143,7 +148,7 @@ ReadLoop:
 			}
 
 			write(file, db, args[1], order)
-			fmt.Println("todo write")
+
 		} else if strings.HasPrefix(command, "close") {
 			break ReadLoop
 		} else {
@@ -160,6 +165,39 @@ func move_cursor(data any) {
 		return
 	}
 	cursor_position += int64(size)
+}
+
+func binary_size(data any) int64 {
+	size := binary.Size(data)
+	if size == -1 {
+		return 0
+	}
+	return int64(size)
+}
+
+func truncateString(s string) [40]byte {
+	// Convert the string to a byte slice
+	stringBytes := []byte(s)
+
+	// Create a fixed-size byte array of length 40
+	var fixedSizeByteArray [40]byte
+
+	// Copy the content of the byte slice into the fixed-size byte array
+	copy(fixedSizeByteArray[:], stringBytes)
+
+	return fixedSizeByteArray
+}
+
+func record_name_compare(record_filename [40]byte, target_filename string) bool {
+	s_record_filename := string(bytes.TrimRight(record_filename[:], "\x00"))
+	return s_record_filename == target_filename
+}
+
+func record_contains(db *DatabaseStructure, filename string) bool {
+	for _, v := range db.Records {
+		return record_name_compare(v.FileName, filename)
+	}
+	return false
 }
 
 // not concurrent for now
@@ -186,7 +224,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	file_size := fileInfo.Size()
 	file_name := fileInfo.Name()
 	if record_contains(db, file_name) {
-		fmt.Println("[Write] File already exists ", file_name)
+		fmt.Println("[Write] File already exists", file_name)
 		return
 	}
 	// Create Record
@@ -202,16 +240,25 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		log.Fatal("[WRITE] Temporary file failed to create ", err)
 	}
 
-	metadata_point := binary_size(&db.RecordCount) + int64(binary.Size(Record{})*int(order))
+	metadata_point := binary_size(Record{}) * int64(order)
+
+	// Write the first byte  to the file
+	var first_byte uint8 = db.RecordCount + 1
+	if err := binary.Write(tempFile, binary.LittleEndian, first_byte); err != nil {
+		os.Remove(tempFile.Name())
+		log.Fatal("[WRITE] Failed to write new record count ", err)
+	}
 
 	// Read data from the original file up to the record insertion point and write it to the temporary file
-	_, err = file.Seek(0, io.SeekStart)
+	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to seek start ", err)
 	}
 
 	_, err = io.CopyN(tempFile, file, metadata_point)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write the old metadata ", err)
 	}
 
@@ -219,17 +266,20 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 
 	// Write the new record
 	if err := binary.Write(tempFile, binary.LittleEndian, record.FileName); err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write new record name ", err)
 	}
 	if err := binary.Write(tempFile, binary.LittleEndian, record.Size); err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write new record size ", err)
 	}
 
 	// get rest
-	left_record_point := (binary_size(&db.RecordCount) + int64(binary.Size(Record{})*int(db.RecordCount))) - metadata_point
+	left_record_point := binary_size(Record{})*int64(db.RecordCount) - metadata_point
 
 	_, err = io.CopyN(tempFile, file, left_record_point)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write the rest of metadata: ", err)
 	}
 
@@ -241,44 +291,51 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		insertion_point += db.Records[i].Size
 	}
 
-	fmt.Println("[WRITE] insertion point: ", insertion_point)
+	//fmt.Println("[WRITE] insertion point: ", insertion_point)
 
 	// Read data from the original file up to the file insertion point and write it to the temporary file
 	_, err = io.CopyN(tempFile, file, insertion_point)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write the files before: ", err)
 	}
 
 	// Write new file
 	_, err = io.Copy(tempFile, new_file)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write the new file ", err)
 	}
 
 	// Read the remaining data from the original file and write it to the temporary file
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write rest of the files ", err)
 	}
 
 	_, err = tempFile.Seek(0, io.SeekStart)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Error going back to start in temp file ", err)
 	}
 
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Error going back to start in main file ", err)
 	}
 
 	_, err = io.Copy(file, tempFile)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Failed to write back to database ", err)
 	}
 
 	// get cursor pos
 	n_seek, err := file.Seek(0, io.SeekCurrent)
 	if err != nil {
+		os.Remove(tempFile.Name())
 		log.Fatal("[WRITE] Error getting cursor position ", err)
 	}
 	cursor_position = int64(n_seek)
@@ -294,38 +351,45 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		log.Fatal("Error removing temporary file:", err)
 	}
 
+	fmt.Println("[WRITE] Write complete")
 }
 
-func binary_size(data any) int64 {
-	size := binary.Size(data)
-	if size == -1 {
-		return 0
+func read(file *os.File, db *DatabaseStructure, filename string) {
+	// fail if we didn't write any files yet
+	if db.RecordCount == 0 {
+		fmt.Println("[READ] Database has no files")
+		return
 	}
-	return int64(size)
-}
-
-func truncateString(s string) [40]byte {
-
-	// Convert the string to a byte slice
-	stringBytes := []byte(s)
-
-	// Create a fixed-size byte array of length 40
-	var fixedSizeByteArray [40]byte
-
-	// Copy the content of the byte slice into the fixed-size byte array
-	copy(fixedSizeByteArray[:], stringBytes)
-
-	return fixedSizeByteArray
-}
-
-func record_contains(db *DatabaseStructure, filename string) bool {
-	var res bool = false
-
-	for _, v := range db.Records {
-		fnr := string(bytes.TrimRight(v.FileName[:], "\x00"))
-		if fnr == filename {
-			res = true
+	var file_size int64 = 0
+	// calculate the location of file in the database
+	var location int64 = binary_size(Record{})*int64(db.RecordCount) + binary_size(&db.RecordCount)
+	for r_count, record := range db.Records {
+		if record_name_compare(record.FileName, filename) {
+			file_size = record.Size
+			break
+		}
+		location += record.Size
+		if r_count+1 == int(db.RecordCount) { // fail if you reached end
+			// Todo: read fail case, should be something that programs can understand
+			fmt.Println("[READ] No such file in database")
+			return
 		}
 	}
-	return res
+	// seek to the location
+	fmt.Println("[READ] Read location for debug purposes", location)
+
+	new_offset, err := file.Seek(location, io.SeekStart)
+	if err != nil {
+		log.Fatal("[READ] Error seeking the location ", err)
+	}
+	// read and write to stdout
+	fmt.Println("[READ START]")
+
+	_, err = io.CopyN(os.Stdout, file, file_size)
+	if err != nil {
+		log.Fatal("[READ] Failed reading file and writing to stdout: ", err)
+	}
+	cursor_position = new_offset + file_size
+
+	fmt.Printf("\n[READ END]\n")
 }
