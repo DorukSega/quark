@@ -130,7 +130,8 @@ ReadLoop:
 				fmt.Println("open <filenane>")
 				continue ReadLoop
 			}
-			read(file, db, args[1])
+			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
+			read(file, db, args[1], os.Stdout)
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
@@ -354,7 +355,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	fmt.Println("[WRITE] Write complete")
 }
 
-func read(file *os.File, db *DatabaseStructure, filename string) {
+func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) {
 	// fail if we didn't write any files yet
 	if db.RecordCount == 0 {
 		fmt.Println("[READ] Database has no files")
@@ -382,12 +383,13 @@ func read(file *os.File, db *DatabaseStructure, filename string) {
 	if err != nil {
 		log.Fatal("[READ] Error seeking the location ", err)
 	}
-	// read and write to stdout
+
+	// read and write to custom writer interface, quite often the stdout
 	fmt.Println("[READ START]")
 
-	_, err = io.CopyN(os.Stdout, file, file_size)
+	_, err = io.CopyN(dst, file, file_size)
 	if err != nil {
-		log.Fatal("[READ] Failed reading file and writing to stdout: ", err)
+		log.Fatal("[READ] Failed reading file and writing to custom io: ", err)
 	}
 	cursor_position = new_offset + file_size
 
