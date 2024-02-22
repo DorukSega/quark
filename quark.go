@@ -127,7 +127,7 @@ ReadLoop:
 		if strings.HasPrefix(command, "read") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
-				fmt.Println("open <filenane>")
+				fmt.Println("open <filename>")
 				continue ReadLoop
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
@@ -343,7 +343,9 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 
 	// Write new record in memory
 	db.RecordCount += 1
-	db.Records = append(db.Records, record)
+	db.Records = append(db.Records, Record{})
+	copy(db.Records[order+1:], db.Records[order:])
+	db.Records[order] = record
 
 	// Remove (delete) the temporary file
 	tempFile.Close()
