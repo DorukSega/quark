@@ -397,3 +397,6 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 
 	fmt.Printf("\n[READ END]\n")
 }
+
+// Todo: Delete Function
+// func delete(file *os.File, db *DatabaseStructure, filename string) {}
