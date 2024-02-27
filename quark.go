@@ -139,6 +139,7 @@ ReadLoop:
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			read(file, db, args[1], os.Stdout)
+			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
