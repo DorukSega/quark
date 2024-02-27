@@ -415,12 +415,14 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 
 	fmt.Printf("\n[READ END]\n")
 }
+
 func delete(file *os.File, db *DatabaseStructure, filename string) {
 	// check if database has any file
 	if db.RecordCount == 0 {
 		fmt.Println("[DELETE] Database has no files")
 		return
 	}
+
 	var file_size int64 = 0
 	// file_size: data size of that file in test.bin
 	var location int64 = binary_size(Record{})*int64(db.RecordCount) + binary_size(&db.RecordCount)
@@ -452,7 +454,7 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 	if err != nil {
 		log.Fatal("[Delete] Temporary file failed to create ", err)
 	}
-	// Write the first byte  to the file
+	// Write the first byte to the file
 	var first_byte uint8 = db.RecordCount - 1
 	metadata_point := binary_size(Record{})*int64(db.RecordCount) + binary_size(first_byte)
 	if err := binary.Write(tempFile, binary.LittleEndian, first_byte); err != nil {
@@ -557,6 +559,7 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 
 	// Remove the last record from memory
 	db.RecordCount -= 1
+	copy(db.Records[order:], db.Records[order+1:])
 	db.Records = db.Records[:len(db.Records)-1]
 
 	// Remove (delete) the temporary file
