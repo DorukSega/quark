@@ -141,7 +141,7 @@ ReadLoop:
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			read(file, db, args[1], os.Stdout)
-			readLog(db,args[1])
+			readLog(db, args[1])
 			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
@@ -576,25 +576,34 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 
 	fmt.Println("[Delete] Delete complete")
 }
-func readLog(db *DatabaseStructure,filename string)  {	
+
+func readLog(db *DatabaseStructure, filename string) {
 	// fail if we didn't write any files yet
-	if db.RecordCount == 0 {return}
+	if db.RecordCount == 0 {
+		return
+	}
 	fileCheck := false
-    for _, record := range db.Records {
-        if record_name_compare(record.FileName, filename) {
-            fileCheck = true
-            break
-        }
-    }
-    if !fileCheck {return}
+	for _, record := range db.Records {
+		if record_name_compare(record.FileName, filename) {
+			fileCheck = true
+			break
+		}
+	}
+	if !fileCheck {
+		return
+	}
 
-	binaryName := filepath.Base(os.Args[1])	
+	binaryName := filepath.Base(os.Args[1])
 	csvName := strings.TrimSuffix(binaryName, ".bin") + ".csv"
-	csvPath := "./logs/"+ csvName
+	csvPath := "./logs/" + csvName
 
-	readLogCheck()
+	file_isnotexist := false
+
+	_, err_stat := os.Stat(csvPath)
+	file_isnotexist = os.IsNotExist(err_stat)
+
 	// Open the CSV file in append mode
-	file, err := os.OpenFile(csvPath, os.O_APPEND|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(csvPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatal("[READLOG] Error opening CSV file:", err)
 		return
@@ -605,46 +614,24 @@ func readLog(db *DatabaseStructure,filename string)  {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	fileReadTime:= time.Now().Unix()
+	if file_isnotexist {
+		headers := []string{"filename", "time"}
+		if err := writer.Write(headers); err != nil {
+			fmt.Println("Error writing headers to CSV:", err)
+			return
+		}
+	}
 
-	row := []string{filename, fmt.Sprintf("%d", fileReadTime)}
+	fileReadTime := time.Now().Unix()
+
+	row := []string{filename, strconv.FormatInt(fileReadTime, 10)}
 
 	if err := writer.Write(row); err != nil {
 		log.Fatal("[READLOG] Error writing row to CSV:", err)
 		return
 	}
 
-    //fmt.Println("Binary file name:", binaryName)
-    //fmt.Println("CSV file name:", csvName)
-    //fmt.Println("filename file name:", filename)
-}
-func readLogCheck()  {
-	binaryName := filepath.Base(os.Args[1])	
-	csvName := strings.TrimSuffix(binaryName, ".bin") + ".csv"
-	csvPath := "./logs/"+ csvName
-
-	if _,err:= os.Stat(csvPath); os.IsNotExist(err) {
-		// file does not exist
-		//fmt.Println("[READLOG] Creating reading log csv file", csvPath)
-
-		csvFile, err := os.Create(csvPath)
-		if err != nil {
-			log.Fatal("[READLOG] Error creating csv: ", err)
-			return
-		}
-		defer csvFile.Close()
-
-		writer:= csv.NewWriter(csvFile)
-   		defer writer.Flush()
-
-		headers := []string{"filename", "time"}
-		if err := writer.Write(headers); err != nil {
-			fmt.Println("Error writing headers to CSV:", err)
-			return
-		}
-
-	}else if err!= nil{
-		//err exist
-		log.Fatal(err)
-	}
+	//fmt.Println("Binary file name:", binaryName)
+	//fmt.Println("CSV file name:", csvName)
+	//fmt.Println("filename file name:", filename)
 }
