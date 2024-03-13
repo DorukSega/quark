@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 /*
@@ -139,6 +141,8 @@ ReadLoop:
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			read(file, db, args[1], os.Stdout)
+			readLog(db, args[1])
+			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
@@ -281,7 +285,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		log.Fatal("[WRITE] Failed to write the old metadata ", err)
 	}
 
-	fmt.Println("[WRITE] metadata_point: ", metadata_point)
+	//fmt.Println("[WRITE] metadata_point: ", metadata_point)
 
 	// Write the new record
 	if err := binary.Write(tempFile, binary.LittleEndian, record.FileName); err != nil {
@@ -302,7 +306,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		log.Fatal("[WRITE] Failed to write the rest of metadata: ", err)
 	}
 
-	fmt.Println("[WRITE] left_record_point: ", left_record_point)
+	//fmt.Println("[WRITE] left_record_point: ", left_record_point)
 
 	// insertion point
 	var insertion_point int64 = 0
@@ -310,7 +314,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 		insertion_point += db.Records[i].Size
 	}
 
-	fmt.Println("[WRITE] insertion point: ", insertion_point)
+	//fmt.Println("[WRITE] insertion point: ", insertion_point)
 
 	// Read data from the original file up to the file insertion point and write it to the temporary file
 	_, err = io.CopyN(tempFile, file, insertion_point)
@@ -397,7 +401,7 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 		}
 	}
 	// seek to the location
-	fmt.Println("[READ] Read location for debug purposes", location)
+	//fmt.Println("[READ] Read location for debug purposes", location)
 
 	new_offset, err := file.Seek(location, io.SeekStart)
 	if err != nil {
@@ -444,7 +448,8 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 	}
 	location += file_size
 	// seek to the location
-	fmt.Println("[Delete] Delete location for debug purposes", location)
+
+	//fmt.Println("[Delete] Delete location for debug purposes", location)
 	if order > db.RecordCount {
 		fmt.Println("[WRITE] Order is unusable")
 		return
@@ -468,7 +473,7 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 		log.Fatal("[Delete] Failed to seek start ", err)
 	}
 
-	fmt.Println("[Delete] metadata_point: ", metadata_point)
+	//fmt.Println("[Delete] metadata_point: ", metadata_point)
 
 	for i := 0; i < int(db.RecordCount); i++ {
 		if i == int(order) {
@@ -496,7 +501,7 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 		log.Fatal("[Delete] Error skipping mistake ", err)
 	}
 
-	fmt.Println("[Delete] insertion point: ", insertion_point)
+	//fmt.Println("[Delete] insertion point: ", insertion_point)
 
 	_, err = io.CopyN(tempFile, file, insertion_point)
 	if err != nil {
@@ -572,5 +577,61 @@ func delete(file *os.File, db *DatabaseStructure, filename string) {
 	fmt.Println("[Delete] Delete complete")
 }
 
-// Todo: Delete Function
-// func delete(file *os.File, db *DatabaseStructure, filename string) {}
+func readLog(db *DatabaseStructure, filename string) {
+	// fail if we didn't write any files yet
+	if db.RecordCount == 0 {
+		return
+	}
+	fileCheck := false
+	for _, record := range db.Records {
+		if record_name_compare(record.FileName, filename) {
+			fileCheck = true
+			break
+		}
+	}
+	if !fileCheck {
+		return
+	}
+
+	binaryName := filepath.Base(os.Args[1])
+	csvName := strings.TrimSuffix(binaryName, ".bin") + ".csv"
+	csvPath := "./logs/" + csvName
+
+	file_isnotexist := false
+
+	_, err_stat := os.Stat(csvPath)
+	file_isnotexist = os.IsNotExist(err_stat)
+
+	// Open the CSV file in append mode
+	file, err := os.OpenFile(csvPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Fatal("[READLOG] Error opening CSV file:", err)
+		return
+	}
+	defer file.Close()
+
+	// Create a CSV writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+
+	if file_isnotexist {
+		headers := []string{"filename", "time"}
+		if err := writer.Write(headers); err != nil {
+			fmt.Println("Error writing headers to CSV:", err)
+			return
+		}
+	}
+
+	fileReadTime := time.Now().Unix()
+
+	row := []string{filename, strconv.FormatInt(fileReadTime, 10)}
+
+	if err := writer.Write(row); err != nil {
+		log.Fatal("[READLOG] Error writing row to CSV:", err)
+		return
+	}
+
+	//fmt.Println("Binary file name:", binaryName)
+	//fmt.Println("CSV file name:", csvName)
+	//fmt.Println("filename file name:", filename)
+}
