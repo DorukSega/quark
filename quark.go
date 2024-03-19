@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"encoding/csv"
 	"flag"
@@ -11,6 +10,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +36,11 @@ type Record struct {
 type DatabaseStructure struct {
 	RecordCount uint8
 	Records     []Record
+}
+
+type Readlog struct {
+	FileName string
+	Time     int64
 }
 
 var cursor_position int64 = 0
@@ -119,6 +124,10 @@ func main() {
 		move_cursor(&db_structure.Records)
 
 		fmt.Printf("[MAIN] %s has %d records and cursor position is at %d\n", file.Name(), db_structure.RecordCount, cursor_position)
+		for _, val := range db_structure.Records {
+			fmt.Printf("\t%s - %v\n", val.FileName, val.Size)
+		}
+
 		repl(file, &db_structure)
 		//file.Close()
 	}
@@ -140,7 +149,11 @@ ReadLoop:
 				continue ReadLoop
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
+			start := time.Now()
 			read(file, db, args[1], os.Stdout)
+			end := time.Now()
+			duration := end.Sub(start)
+			fmt.Println("[REPL] Duration for Read ", duration)
 			readLog(db, args[1])
 			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
@@ -171,410 +184,26 @@ ReadLoop:
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			delete(file, db, args[1])
 
-		} else if strings.HasPrefix(command, "close") {
+		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
 			break ReadLoop
+		} else if strings.HasPrefix(command, "optimize1") {
+			reorg(file, db, optimize_falgo(db))
+		} else if strings.HasPrefix(command, "help") {
+			print_help()
 		} else {
-			fmt.Println("Unknown command. Please enter read <file>, write <file>, close")
+			fmt.Println("Unknown command.")
+			print_help()
 		}
-
 	}
 
 	file.Close()
 }
 
-func move_cursor(data any) {
-	size := binary.Size(data)
-	if size == -1 {
-		return
-	}
-	cursor_position += int64(size)
-}
-
-func binary_size(data any) int64 {
-	size := binary.Size(data)
-	if size == -1 {
-		return 0
-	}
-	return int64(size)
-}
-
-func truncateString(s string) [40]byte {
-	// Convert the string to a byte slice
-	stringBytes := []byte(s)
-
-	// Create a fixed-size byte array of length 40
-	var fixedSizeByteArray [40]byte
-
-	// Copy the content of the byte slice into the fixed-size byte array
-	copy(fixedSizeByteArray[:], stringBytes)
-
-	return fixedSizeByteArray
-}
-
-func record_name_compare(record_filename [40]byte, target_filename string) bool {
-	s_record_filename := string(bytes.TrimRight(record_filename[:], "\x00"))
-	return s_record_filename == target_filename
-}
-
-func record_contains(db *DatabaseStructure, filename string) bool {
-	for _, v := range db.Records {
-		return record_name_compare(v.FileName, filename)
-	}
-	return false
-}
-
-// not concurrent for now
-func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
-	if order > db.RecordCount {
-		fmt.Println("[WRITE] Order is unusable")
-		return
-	}
-
-	// open file
-	new_file, err := os.Open(filepath)
-	if err != nil {
-		fmt.Println("[WRITE] Error opening source file: ", err)
-		return
-	}
-	defer new_file.Close()
-
-	// Get file size
-	fileInfo, err := new_file.Stat()
-	if err != nil {
-		fmt.Println("[Write] Can't read file ", err)
-		return
-	}
-	file_size := fileInfo.Size()
-	file_name := fileInfo.Name()
-	if record_contains(db, file_name) {
-		fmt.Println("[Write] File already exists", file_name)
-		return
-	}
-	// Create Record
-	var record Record
-	record.FileName = truncateString(file_name)
-	record.Size = file_size
-
-	fmt.Printf("[WRITE] Writing %s at %d with size %d\n", record.FileName, order, record.Size)
-
-	// Create a temporary file for writing
-	tempFile, err := os.CreateTemp("./", "tempfile")
-	if err != nil {
-		log.Fatal("[WRITE] Temporary file failed to create ", err)
-	}
-
-	metadata_point := binary_size(Record{}) * int64(order)
-
-	// Write the first byte  to the file
-	var first_byte uint8 = db.RecordCount + 1
-	if err := binary.Write(tempFile, binary.LittleEndian, first_byte); err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record count ", err)
-	}
-
-	// Read data from the original file up to the record insertion point and write it to the temporary file
-	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to seek start ", err)
-	}
-
-	_, err = io.CopyN(tempFile, file, metadata_point)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the old metadata ", err)
-	}
-
-	//fmt.Println("[WRITE] metadata_point: ", metadata_point)
-
-	// Write the new record
-	if err := binary.Write(tempFile, binary.LittleEndian, record.FileName); err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record name ", err)
-	}
-	if err := binary.Write(tempFile, binary.LittleEndian, record.Size); err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record size ", err)
-	}
-
-	// get rest
-	left_record_point := binary_size(Record{})*int64(db.RecordCount) - metadata_point
-
-	_, err = io.CopyN(tempFile, file, left_record_point)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the rest of metadata: ", err)
-	}
-
-	//fmt.Println("[WRITE] left_record_point: ", left_record_point)
-
-	// insertion point
-	var insertion_point int64 = 0
-	for i := 0; i < int(order); i++ {
-		insertion_point += db.Records[i].Size
-	}
-
-	//fmt.Println("[WRITE] insertion point: ", insertion_point)
-
-	// Read data from the original file up to the file insertion point and write it to the temporary file
-	_, err = io.CopyN(tempFile, file, insertion_point)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the files before: ", err)
-	}
-
-	// Write new file
-	_, err = io.Copy(tempFile, new_file)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the new file ", err)
-	}
-
-	// Read the remaining data from the original file and write it to the temporary file
-	_, err = io.Copy(tempFile, file)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write rest of the files ", err)
-	}
-
-	_, err = tempFile.Seek(0, io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error going back to start in temp file ", err)
-	}
-
-	_, err = file.Seek(0, io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error going back to start in main file ", err)
-	}
-
-	_, err = io.Copy(file, tempFile)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write back to database ", err)
-	}
-
-	// get cursor pos
-	n_seek, err := file.Seek(0, io.SeekCurrent)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error getting cursor position ", err)
-	}
-	cursor_position = int64(n_seek)
-
-	// Write new record in memory
-	db.RecordCount += 1
-	db.Records = append(db.Records, Record{})
-	copy(db.Records[order+1:], db.Records[order:])
-	db.Records[order] = record
-
-	// Remove (delete) the temporary file
-	tempFile.Close()
-	err = os.Remove(tempFile.Name())
-	if err != nil {
-		log.Fatal("Error removing temporary file:", err)
-	}
-
-	fmt.Println("[WRITE] Write complete")
-}
-
-func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) {
-	// fail if we didn't write any files yet
-	if db.RecordCount == 0 {
-		fmt.Println("[READ] Database has no files")
-		return
-	}
-	var file_size int64 = 0
-	// calculate the location of file in the database
-	var location int64 = binary_size(Record{})*int64(db.RecordCount) + binary_size(&db.RecordCount)
-	for r_count, record := range db.Records {
-		if record_name_compare(record.FileName, filename) {
-			file_size = record.Size
-			break
-		}
-		location += record.Size
-		if r_count+1 == int(db.RecordCount) { // fail if you reached end
-			// Todo: read fail case, should be something that programs can understand
-			fmt.Println("[READ] No such file in database")
-			return
-		}
-	}
-	// seek to the location
-	//fmt.Println("[READ] Read location for debug purposes", location)
-
-	new_offset, err := file.Seek(location, io.SeekStart)
-	if err != nil {
-		log.Fatal("[READ] Error seeking the location ", err)
-	}
-
-	// read and write to custom writer interface, quite often the stdout
-	fmt.Println("[READ START]")
-
-	_, err = io.CopyN(dst, file, file_size)
-	if err != nil {
-		log.Fatal("[READ] Failed reading file and writing to custom io: ", err)
-	}
-	cursor_position = new_offset + file_size
-
-	fmt.Printf("\n[READ END]\n")
-}
-
-func delete(file *os.File, db *DatabaseStructure, filename string) {
-	// check if database has any file
-	if db.RecordCount == 0 {
-		fmt.Println("[DELETE] Database has no files")
-		return
-	}
-
-	var file_size int64 = 0
-	// file_size: data size of that file in test.bin
-	var location int64 = binary_size(Record{})*int64(db.RecordCount) + binary_size(&db.RecordCount)
-	// location: location of that file in test.bin
-	var order uint8 = 0
-	// record_order: order of record in all records
-	for r_count, record := range db.Records {
-		if record_name_compare(record.FileName, filename) {
-			file_size = record.Size
-			break
-		}
-		location += record.Size
-		order += 1
-		if r_count+1 == int(db.RecordCount) { // fail if you reached end
-			// Todo: read fail case, should be something that programs can understand
-			fmt.Println("[DELETE] No such file in database")
-			return
-		}
-	}
-	location += file_size
-	// seek to the location
-
-	//fmt.Println("[Delete] Delete location for debug purposes", location)
-	if order > db.RecordCount {
-		fmt.Println("[WRITE] Order is unusable")
-		return
-	}
-	// Create a temporary file for writing
-	tempFile, err := os.CreateTemp("./", "tempfile")
-	if err != nil {
-		log.Fatal("[Delete] Temporary file failed to create ", err)
-	}
-	// Write the first byte to the file
-	var first_byte uint8 = db.RecordCount - 1
-	metadata_point := binary_size(Record{})*int64(db.RecordCount) + binary_size(first_byte)
-	if err := binary.Write(tempFile, binary.LittleEndian, first_byte); err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to write new record count ", err)
-	}
-	// Read data from the original file up to the record insertion point and write it to the temporary file
-	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to seek start ", err)
-	}
-
-	//fmt.Println("[Delete] metadata_point: ", metadata_point)
-
-	for i := 0; i < int(db.RecordCount); i++ {
-		if i == int(order) {
-			continue
-		} else {
-			// Write the new record
-			if err := binary.Write(tempFile, binary.LittleEndian, db.Records[i].FileName); err != nil {
-				os.Remove(tempFile.Name())
-				log.Fatal("[Delete] Failed to write new record name ", err)
-			}
-			if err := binary.Write(tempFile, binary.LittleEndian, db.Records[i].Size); err != nil {
-				os.Remove(tempFile.Name())
-				log.Fatal("[Delete] Failed to write new record size ", err)
-			}
-		}
-	}
-	// insertion point
-	var insertion_point int64 = 0
-	for i := 0; i < int(order); i++ {
-		insertion_point += db.Records[i].Size
-	}
-	_, err = file.Seek(metadata_point, 0)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error skipping mistake ", err)
-	}
-
-	//fmt.Println("[Delete] insertion point: ", insertion_point)
-
-	_, err = io.CopyN(tempFile, file, insertion_point)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to write the files before: ", err)
-	}
-
-	/// OKAY
-	_, err = file.Seek(location, 0)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error skipping mistake ", err)
-	}
-
-	// Read the remaining data from the original file and write it to the temporary file
-	_, err = io.Copy(tempFile, file)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to write rest of the files ", err)
-	}
-
-	_, err = tempFile.Seek(0, io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error going back to start in temp file ", err)
-	}
-
-	_, err = file.Seek(0, io.SeekStart)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error going back to start in main file ", err)
-	}
-
-	//// STOP TOO LATE
-	_, err = io.Copy(file, tempFile)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to write back to database ", err)
-	}
-	tempFileSize, err := tempFile.Seek(0, io.SeekEnd)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error getting size of temp file ", err)
-	}
-
-	// Truncate the original file to match the size of the temporary file
-	err = file.Truncate(tempFileSize)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Failed to truncate main file ", err)
-	}
-
-	// get cursor pos
-	n_seek, err := file.Seek(0, io.SeekCurrent)
-	if err != nil {
-		os.Remove(tempFile.Name())
-		log.Fatal("[Delete] Error getting cursor position ", err)
-	}
-	cursor_position = int64(n_seek)
-
-	// Remove the last record from memory
-	db.RecordCount -= 1
-	copy(db.Records[order:], db.Records[order+1:])
-	db.Records = db.Records[:len(db.Records)-1]
-
-	// Remove (delete) the temporary file
-	tempFile.Close()
-	err = os.Remove(tempFile.Name())
-	if err != nil {
-		log.Fatal("Error removing temporary file:", err)
-	}
-
-	fmt.Println("[Delete] Delete complete")
+func print_help() {
+	fmt.Println("\tread   <file> <order|optional>")
+	fmt.Println("\twrite  <file> <order|optional>")
+	fmt.Println("\tdelete <file>")
+	fmt.Println("\tclose OR exit")
 }
 
 func readLog(db *DatabaseStructure, filename string) {
@@ -594,8 +223,7 @@ func readLog(db *DatabaseStructure, filename string) {
 	}
 
 	binaryName := filepath.Base(os.Args[1])
-	csvName := strings.TrimSuffix(binaryName, ".bin") + ".csv"
-	csvPath := "./logs/" + csvName
+	csvPath := "./logs/" + binaryName + ".csv"
 
 	file_isnotexist := false
 
@@ -634,4 +262,157 @@ func readLog(db *DatabaseStructure, filename string) {
 	//fmt.Println("Binary file name:", binaryName)
 	//fmt.Println("CSV file name:", csvName)
 	//fmt.Println("filename file name:", filename)
+}
+
+/*
+FALGO_RECORDS:
+
+	Falgo:
+		filename
+		total_weight
+		Edges[]:
+			to_filename
+			weight
+*/
+type Edge struct {
+	ToFilename string
+	Weight     int
+}
+
+type Falgo struct {
+	FileName    string
+	TotalWeight int
+	Edges       []Edge
+}
+
+func optimize_falgo(db *DatabaseStructure) [][40]byte {
+	binaryName := filepath.Base(os.Args[1])
+	csvPath := "./logs/" + binaryName + ".csv"
+
+	file, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
+	if err != nil {
+		log.Fatal("[OPTMZ1] Error opening CSV file:", err)
+		return nil
+	}
+	defer file.Close()
+	reader := csv.NewReader(file)
+
+	_, err = reader.Read()
+	if err != nil {
+		log.Fatal("[OPTMZ1] Reader can't read:", err)
+		return nil
+	}
+	records := []Readlog{}
+	for {
+		raw_record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		time, err2 := strconv.ParseInt(raw_record[1], 10, 64)
+		if err2 != nil {
+			log.Fatal(err)
+		}
+		records = append(records, Readlog{
+			FileName: raw_record[0],
+			Time:     time,
+		})
+	}
+	//fmt.Println(records)
+	falgo_records := []Falgo{}
+	for _, recdb := range db.Records {
+		falgo_records = append(falgo_records, Falgo{
+			FileName:    byteReadable(recdb.FileName),
+			TotalWeight: 0,
+			Edges:       []Edge{},
+		})
+	}
+
+	for ir, rec := range records {
+		if ir+1 == len(records) {
+			break
+		}
+		for ix := range falgo_records {
+			fal := &falgo_records[ix]
+			if fal.FileName == rec.FileName {
+				rec_next := records[ir+1]
+				if fal.FileName == rec_next.FileName {
+					fal.TotalWeight++
+					break // break from upper for
+				}
+				// check if there is a edge, if so use
+				// else add a new
+				if edges_contains(&fal.Edges, rec_next.FileName) {
+					for iy := range fal.Edges {
+						edge := &fal.Edges[iy]
+						if edge.ToFilename == rec_next.FileName {
+							edge.Weight++
+							break
+						}
+					}
+				} else {
+					fal.Edges = append(fal.Edges, Edge{
+						ToFilename: rec_next.FileName,
+						Weight:     1,
+					})
+				}
+				fal.TotalWeight++
+				break
+			}
+		}
+	}
+	//fmt.Println(falgo_records)
+	n_db := [][40]byte{}
+	// start with largest total weight, go to largest edge
+	// continue until consumed, start again with the rest
+	for len(falgo_records) != 0 {
+		sort.Slice(falgo_records, func(i, j int) bool {
+			return falgo_records[i].TotalWeight > falgo_records[j].TotalWeight
+		})
+		falgo_recursive(&n_db, &falgo_records, 0)
+	}
+	for _, v := range n_db {
+		fmt.Println(byteReadable(v))
+	}
+	return n_db
+}
+
+func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
+	val := (*falgo)[index]
+	sort.Slice(val.Edges, func(i, j int) bool {
+		return val.Edges[i].Weight > val.Edges[j].Weight
+	})
+	var selected_edge string = ""
+	for _, esel := range val.Edges {
+		if selected_edge != "" {
+			break
+		}
+		for _, v := range *falgo {
+			if v.FileName == esel.ToFilename {
+				selected_edge = esel.ToFilename
+				break
+			}
+		}
+	}
+
+	// write
+	*n_db = append(*n_db, truncateString(val.FileName))
+
+	if selected_edge == "" {
+		*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
+		return
+	}
+	next_index := 0
+	for iy, nval := range *falgo {
+		if nval.FileName == selected_edge {
+			next_index = iy
+			break
+		}
+	}
+	if next_index != 0 {
+		falgo_recursive(n_db, falgo, next_index)
+	}
+	*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
 }
