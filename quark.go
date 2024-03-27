@@ -154,6 +154,8 @@ ReadLoop:
 			end := time.Now()
 			duration := end.Sub(start)
 			fmt.Println("[REPL] Duration for Read ", duration)
+			//changes
+			timerWriter(args[1], duration)
 			readLog(db, args[1])
 			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
@@ -185,9 +187,25 @@ ReadLoop:
 			delete(file, db, args[1])
 
 		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
+			//changes
+			timerWriter("FILE CLOSED", 0)
 			break ReadLoop
 		} else if strings.HasPrefix(command, "optimize1") {
+			//changes
+			timerWriter("- - - OPTIMIZER STARTED - - -", 0)
 			reorg(file, db, optimize_falgo(db))
+			//changes
+			timerWriter("- - - OPTIMIZER ENDED - - -", 0)
+
+			//changes
+		} else if strings.HasPrefix(command, "code") {
+			args := strings.Split(command, " ")
+			if len(args) != 2 {
+				fmt.Println("write <filename> <order|optional>")
+				continue ReadLoop
+			}
+			codeExecuter(file, db, args[1])
+
 		} else if strings.HasPrefix(command, "help") {
 			print_help()
 		} else {
@@ -375,6 +393,8 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 	}
 	for _, v := range n_db {
 		fmt.Println(byteReadable(v))
+		//changes
+		timerWriter(byteReadable(v),0)
 	}
 	return n_db
 }
