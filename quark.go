@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 )
-
+//MARK: File Structure
 /*
 File Structure:
     Record Count - uint8
@@ -24,114 +24,135 @@ File Structure:
         size 	 - int64
     Files:
         file 	 - any size
+----------------------------------------
+test.bin => 
+	total_record_count, 
+	records[file_name, file_size], 
+	record_data
 */
 
-// Record represents the structure of each record
+/*	MARK: Record
+	Record represents the structure of each record
+*/
 type Record struct {
 	FileName [40]byte // [40]byte
 	Size     int64
 }
 
-// DatabaseStructure represents the overall structure of the database.
+/*	MARK: DataBaseStucture
+		DatabaseStructure represents the overall structure of the database.
+*/
 type DatabaseStructure struct {
 	RecordCount uint8
 	Records     []Record
 }
 
+/*	MARK: ReadLog	*/
 type Readlog struct {
 	FileName string
 	Time     int64
 }
-
+/*	MARK: Cursor Position	*/
 var cursor_position int64 = 0
 
 func main() {
 	flag.Parse()
+
+	//	Database first argument error check
 	if flag.NArg() < 1 {
 		log.Fatal("Usage: quark <database.db>")
+	}else if name := flag.Arg(0);!strings.HasSuffix(name, ".bin") {
+		text	:= fmt.Sprintf(`
+		Error: The provided file '%s'
+		Does not have the expected '.bin' extension.
+		Please specify a binary file.
+		`, name)
+		log.Fatal(text)
+	}else if name == ".bin" {
+		text	:= fmt.Sprintf(`
+		Error: The provided file name '%s' is invalid.
+		Please specify a valid filename with 
+		an appropriate name before the '.bin' extension.
+		For example: 'test.bin'.
+		`, name)
+		log.Fatal(text)		
 	}
-	//code start pont
-	filepath_db := flag.Arg(0)
 
+	filepath_db := flag.Arg(0)
 	filepath_db = filepath.Clean(filepath_db)
-	//command line clearance
 
 	db_structure := DatabaseStructure{
 		RecordCount: 0,
 		Records:     []Record{},
 	}
-	/*
-		main data structure
-		recordCounter number of files in database
-		Records filename 40 byte + size of the file
-	*/
-
+	// MARK: check file existence 
 	if _, err := os.Stat(filepath_db); os.IsNotExist(err) {
-		// file does not exist
-		fmt.Println("[MAIN] Creating ", filepath_db)
-
-		file, err := os.Create(filepath_db)
-		if err != nil {
+	// IF NOT EXIST
+		fmt.Printf("[MAIN] Creating a binary file '%s'\n", filepath_db)
+		file, err := os.Create(filepath_db)		
+		if err != nil {			
 			log.Fatal("[MAIN] Error creating database: ", err)
 		}
 
-		// Write the first byte (0) to the file
+		// MARK: First Byte
 		var first_byte uint8 = 0
 		err = binary.Write(file, binary.LittleEndian, first_byte)
 		if err != nil {
 			log.Fatal("[MAIN] Error writing to database: ", err)
 		}
-		// move cursor after first byte
+		// move cursor_position to first_byte
 		cursor_position += binary_size(first_byte)
 
 		// start the repl
 		repl(file, &db_structure)
-		//file.Close()
-
 	} else if err != nil {
 		log.Fatal(err)
 	} else {
-		// file exists
-		fmt.Println("[MAIN] Reading ", filepath_db)
-		// open file
+	//IF EXIST
+		fmt.Printf("[MAIN] Reading the binary file'%s'\n", filepath_db)
+		//File open with read-write permissions
 		file, err := os.OpenFile(filepath_db, os.O_RDWR, os.ModePerm)
 		if err != nil {
 			log.Fatal("[MAIN] Error opening database: ", err)
 		}
-
-		//read first byte
+		/*	MARK:	READ record_count
+			Read from the file
+			But because &db_structure.RecordCount is uint8
+			binary.Read() only reads uint8 size of file
+			Value passed on become just first byte (record_count)		
+		*/
 		if err := binary.Read(file, binary.LittleEndian, &db_structure.RecordCount); err != nil {
 			log.Fatal("[MAIN] Error reading first byte: ", err)
 		}
 		move_cursor(&db_structure.RecordCount)
-
-		// Read Records
+		//	Read each record
 		for i := 0; i < int(db_structure.RecordCount); i++ {
 			var record Record
-
-			// Read filename
+			/* 	MARK:	READ filename
+				Read filename size of [40 byte]
+			*/
 			if err := binary.Read(file, binary.LittleEndian, &record.FileName); err != nil {
 				log.Fatal("[MAIN] Error reading FileName: ", err)
 			}
-
-			// Read size
+			/* 	MARK:	READ filesize
+				Read filename size of [8 byte]
+			*/
 			if err := binary.Read(file, binary.LittleEndian, &record.Size); err != nil {
 				log.Fatal("[MAIN] Error reading size: ", err)
 			}
-
+			// read records in order and send them to main db
 			db_structure.Records = append(db_structure.Records, record)
 		}
+		// move cursor up to total record counts
 		move_cursor(&db_structure.Records)
-
 		fmt.Printf("[MAIN] %s has %d records and cursor position is at %d\n", file.Name(), db_structure.RecordCount, cursor_position)
+		fmt.Printf("\t%s\t-\t%s\n", "Record Name","Record Size")
 		for _, val := range db_structure.Records {
-			fmt.Printf("\t%s - %v\n", val.FileName, val.Size)
+			fmt.Printf("\t%s\t\t-\t%v\n", val.FileName, val.Size)
 		}
 
 		repl(file, &db_structure)
-		//file.Close()
 	}
-
 }
 
 func repl(file *os.File, db *DatabaseStructure) {
