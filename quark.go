@@ -163,22 +163,41 @@ ReadLoop:
 		fmt.Print("> ")
 		scanner.Scan()
 		command := scanner.Text()
+		/*	MARK: User input
+				Waits user input
+		*/
 		if strings.HasPrefix(command, "read") {
+			/*	MARK: READ
+					Todo: When cache optimization is implemented, 
+					write only first to Stdout, cache rest
+
+					REDIS can be usefull
+					
+					AI: The suggested optimization involves implementing a 
+					caching mechanism. Instead of immediately writing all 
+					the file contents to os.Stdout, you would read and 
+					write only a portion of the file, while caching 
+					the remaining contents in memory or on disk. Subsequent 
+					reads would then fetch data from the cache rather 
+					than re-reading the entire file.
+			*/
 			args := strings.Split(command, " ")
+			// ["read", "test.txt"]
 			if len(args) != 2 {
+				fmt.Println("Please specify the file name like below:")
 				fmt.Println("open <filename>")
 				continue ReadLoop
 			}
-			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
+			
 			start := time.Now()
 			read(file, db, args[1], os.Stdout)
 			end := time.Now()
 			duration := end.Sub(start)
+
 			fmt.Println("[REPL] Duration for Read ", duration)
 			//changes
 			timerWriter(args[1], duration)
 			readLog(db, args[1])
-			// Todo(salih): readlog(file.Name(), args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
@@ -197,7 +216,6 @@ ReadLoop:
 			}
 
 			write(file, db, args[1], order)
-
 		} else if strings.HasPrefix(command, "delete") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
@@ -206,7 +224,6 @@ ReadLoop:
 			}
 			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			delete(file, db, args[1])
-
 		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
 			//changes
 			timerWriter("FILE CLOSED", 0)
@@ -217,8 +234,6 @@ ReadLoop:
 			reorg(file, db, optimize_falgo(db))
 			//changes
 			timerWriter("- - - OPTIMIZER ENDED - - -", 0)
-
-			//changes
 		} else if strings.HasPrefix(command, "code") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
@@ -226,7 +241,6 @@ ReadLoop:
 				continue ReadLoop
 			}
 			codeExecuter(file, db, args[1])
-
 		} else if strings.HasPrefix(command, "help") {
 			print_help()
 		} else {
@@ -234,7 +248,6 @@ ReadLoop:
 			print_help()
 		}
 	}
-
 	file.Close()
 }
 
