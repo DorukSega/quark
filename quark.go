@@ -194,11 +194,15 @@ ReadLoop:
 			}
 			readWithTime(file, db, args[1], os.Stdout)
 		} else if strings.HasPrefix(command, "write") {
+			/*	MARKED: WRITE
+			*/
 			args := strings.Split(command, " ")
-			// place in database records
+			// ["write", "test.txt"] or ["write", "test.txt", "3"]
 			var order uint8 = db.RecordCount
+			// place in database records
 
 			if len(args) == 3 {
+				// 3rd argument is order so conver into int
 				t_ord, err := strconv.Atoi(args[2])
 				if err != nil {
 					fmt.Println("write <filename> <order|optional>")
@@ -210,29 +214,33 @@ ReadLoop:
 				fmt.Println("write <filename> <order|optional>")
 				continue ReadLoop
 			}
+
 			if err := write(file, db, args[1], order); err != nil {
 				log.Fatal(err)
-			}
-			
+			}			
 		} else if strings.HasPrefix(command, "delete") {
+			/*	MARKED: DELETE
+					Todo: When cache optimization is implemented, 
+					write only first to Stdout, cache rest
+			*/
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
 				fmt.Println("delete <filename>")
 				continue ReadLoop
 			}
-			// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 			delete(file, db, args[1])
 		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
-			//changes
-			timerWriter("FILE CLOSED", 0)
+			/*	MARKED: CLOSE
+			*/
+			closeWithTime()
 			break ReadLoop
 		} else if strings.HasPrefix(command, "optimize1") {
-			//changes
-			timerWriter("- - - OPTIMIZER STARTED - - -", 0)
-			reorg(file, db, optimize_falgo(db))
-			//changes
-			timerWriter("- - - OPTIMIZER ENDED - - -", 0)
+			/*	MARKED: OPTIMIZE
+			*/
+			reorgWithTime(file, db)
 		} else if strings.HasPrefix(command, "code") {
+			/*	MARKED: CODE
+			*/
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
 				fmt.Println("write <filename> <order|optional>")
@@ -240,20 +248,15 @@ ReadLoop:
 			}
 			codeExecuter(file, db, args[1])
 		} else if strings.HasPrefix(command, "help") {
+			/*	MARKED: HELP
+			*/
 			print_help()
 		} else {
-			fmt.Println("Unknown command.")
+			fmt.Println("Unknown command. Please use one of the following: ")
 			print_help()
 		}
 	}
-	file.Close()
-}
-
-func print_help() {
-	fmt.Println("\tread   <file> <order|optional>")
-	fmt.Println("\twrite  <file> <order|optional>")
-	fmt.Println("\tdelete <file>")
-	fmt.Println("\tclose OR exit")
+	defer file.Close()
 }
 
 func readLog(db *DatabaseStructure, filename string) {

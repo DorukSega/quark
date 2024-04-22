@@ -21,4 +21,24 @@ func readWithTime(file *os.File, db *DatabaseStructure, filename string, dst io.
         return difference, nil
 }
 
+func closeWithTime()  {
+	message := "FILE CLOSED"
+	timerWriter(message, 0)	
+}
 
+func reorgWithTime(file *os.File, db *DatabaseStructure)  {
+	startMessage:= "- - - OPTIMIZER STARTED - - -"
+	finishMessage := "- - - OPTIMIZER ENDED - - -"
+
+	timerWriter(startMessage, 0)
+	reorg(file, db, optimize_falgo(db))
+	timerWriter(finishMessage, 0)
+}
+
+func print_help() {
+	fmt.Println("\tread   <file> <order|optional>")
+	fmt.Println("\twrite  <file> <order|optional>")
+	fmt.Println("\toptimize1")
+	fmt.Println("\tdelete <file>")
+	fmt.Println("\tclose OR exit")
+}
