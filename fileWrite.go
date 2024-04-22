@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -83,7 +84,7 @@ func timerWriter(filename string, timer time.Duration) {
 		newRow := []string{}
 		writer.Write(newRow)
 
-	} 
+	}
 }
 
 func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
@@ -105,22 +106,23 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 		if err != nil {
 			log.Fatal(err)
 		}
-		ReadLoop:
+	ReadLoop:
 		for _, element := range lines {
-			if strings.HasPrefix(element, "read")  {
+			if strings.HasPrefix(element, "read") {
 				args := strings.Split(element, " ")
 				start := time.Now()
-				read(myOS, db, args[1], os.Stdout)
+				var buffer bytes.Buffer
+				read(myOS, db, args[1], &buffer)
 				end := time.Now()
 				duration := end.Sub(start)
 				fmt.Println("[REPL] Duration for Read ", duration)
 				timerWriter(args[1], duration)
 				readLog(db, args[1])
-				
-			}else if  strings.HasPrefix(element, "write")  {
+
+			} else if strings.HasPrefix(element, "write") {
 				args := strings.Split(element, " ")
 				var order uint8 = db.RecordCount
-	
+
 				if len(args) == 3 {
 					t_ord, err := strconv.Atoi(args[2])
 					if err != nil {
@@ -128,15 +130,15 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 						continue ReadLoop
 					}
 					order = uint8(t_ord)
-	
+
 				} else if len(args) != 2 {
 					fmt.Println("write <filename> <order|optional>")
 					continue ReadLoop
 				}
-	
+
 				write(myOS, db, args[1], order)
 
-			}else if  strings.HasPrefix(element, "delete")  {
+			} else if strings.HasPrefix(element, "delete") {
 				args := strings.Split(element, " ")
 				if len(args) != 2 {
 					fmt.Println("delete <filename>")
@@ -145,19 +147,19 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 				// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
 				delete(myOS, db, args[1])
 
-			}else if  strings.HasPrefix(element, "close")  || strings.HasPrefix(element, "exit") {
+			} else if strings.HasPrefix(element, "close") || strings.HasPrefix(element, "exit") {
 				timerWriter("FILE CLOSED", 0)
 				break ReadLoop
 
-			}else if  strings.HasPrefix(element, "optimize1")  {
+			} else if strings.HasPrefix(element, "optimize1") {
 				timerWriter("- - - OPTIMIZER STARTED - - -", 0)
 				reorg(file, db, optimize_falgo(db))
 				timerWriter("- - - OPTIMIZER ENDED - - -", 0)
 
-			}else if  strings.HasPrefix(element, "help")  {
+			} else if strings.HasPrefix(element, "help") {
 				print_help()
 
-			}else{
+			} else {
 				fmt.Println("Unknown command.")
 				print_help()
 
