@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
+func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(err error) {
 	if order > db.RecordCount {
 		fmt.Println("[WRITE] Order is unusable")
 		return
@@ -43,8 +43,9 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 
 	// Create a temporary file for writing
 	tempFile, err := os.CreateTemp("./", "tempfile")
-	if err != nil {
-		log.Fatal("[WRITE] Temporary file failed to create ", err)
+	if err != nil {		
+		return fmt.Errorf("[WRITE] Temporary file failed to create  %v", err)
+		//log.Fatal("[WRITE] Temporary file failed to create ", err)
 	}
 
 	metadata_point := binary_size(Record{}) * int64(order)
@@ -53,20 +54,23 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	var first_byte uint8 = db.RecordCount + 1
 	if err := binary.Write(tempFile, binary.LittleEndian, first_byte); err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record count ", err)
+		return fmt.Errorf("[WRITE] Failed to write new record count  %v", err)
+		//log.Fatal("[WRITE] Failed to write new record count ", err)
 	}
 
 	// Read data from the original file up to the record insertion point and write it to the temporary file
 	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to seek start ", err)
+		return fmt.Errorf("[WRITE] Failed to seek start %v", err)
+		// log.Fatal("[WRITE] Failed to seek start ", err)
 	}
 
 	_, err = io.CopyN(tempFile, file, metadata_point)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the old metadata ", err)
+		return fmt.Errorf("[WRITE] Failed to write the old metadata %v", err)
+		// log.Fatal("[WRITE] Failed to write the old metadata ", err)
 	}
 
 	//fmt.Println("[WRITE] metadata_point: ", metadata_point)
@@ -74,11 +78,13 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	// Write the new record
 	if err := binary.Write(tempFile, binary.LittleEndian, record.FileName); err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record name ", err)
+		return fmt.Errorf("[WRITE] Failed to write new record name %v", err)
+		//log.Fatal("[WRITE] Failed to write new record name ", err)
 	}
 	if err := binary.Write(tempFile, binary.LittleEndian, record.Size); err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write new record size ", err)
+		return fmt.Errorf("[WRITE] Failed to write new record size %v", err)
+		//log.Fatal("[WRITE] Failed to write new record size ", err)
 	}
 
 	// get rest
@@ -87,7 +93,8 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	_, err = io.CopyN(tempFile, file, left_record_point)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the rest of metadata: ", err)
+		return fmt.Errorf("[WRITE] Failed to write the rest of metadata: %v", err)
+		//log.Fatal("[WRITE] Failed to write the rest of metadata: ", err)
 	}
 
 	//fmt.Println("[WRITE] left_record_point: ", left_record_point)
@@ -104,46 +111,53 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	_, err = io.CopyN(tempFile, file, insertion_point)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the files before: ", err)
+		return fmt.Errorf("[WRITE] Failed to write the files before: %v", err)
+		//log.Fatal("[WRITE] Failed to write the files before: ", err)
 	}
 
 	// Write new file
 	_, err = io.Copy(tempFile, new_file)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write the new file ", err)
+		return fmt.Errorf("[WRITE] Failed to write the new file %v", err)
+		//log.Fatal("[WRITE] Failed to write the new file ", err)
 	}
 
 	// Read the remaining data from the original file and write it to the temporary file
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write rest of the files ", err)
+		return fmt.Errorf("[WRITE] Failed to write rest of the files %v", err)
+		//log.Fatal("[WRITE] Failed to write rest of the files ", err)
 	}
 
 	_, err = tempFile.Seek(0, io.SeekStart)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error going back to start in temp file ", err)
+		return fmt.Errorf("[WRITE] Error going back to start in temp file %v", err)
+		//log.Fatal("[WRITE] Error going back to start in temp file ", err)
 	}
 
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error going back to start in main file ", err)
+		return fmt.Errorf("[WRITE] Error going back to start in main file %v", err)
+		//log.Fatal("[WRITE] Error going back to start in main file ", err)
 	}
 
 	_, err = io.Copy(file, tempFile)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Failed to write back to database ", err)
+		return fmt.Errorf("[WRITE] Failed to write back to database %v", err)
+		//log.Fatal("[WRITE] Failed to write back to database ", err)
 	}
 
 	// get cursor pos
 	n_seek, err := file.Seek(0, io.SeekCurrent)
 	if err != nil {
 		os.Remove(tempFile.Name())
-		log.Fatal("[WRITE] Error getting cursor position ", err)
+		return fmt.Errorf("[WRITE] Error getting cursor position %v", err)
+		//log.Fatal("[WRITE] Error getting cursor position ", err)
 	}
 	cursor_position = int64(n_seek)
 
@@ -157,13 +171,15 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) {
 	tempFile.Close()
 	err = os.Remove(tempFile.Name())
 	if err != nil {
-		log.Fatal("[WRITE] Error removing temporary file:", err)
+		return fmt.Errorf("[WRITE] Error removing temporary file: %v", err)
+		//log.Fatal("[WRITE] Error removing temporary file:", err)
 	}
 
 	fmt.Println("[WRITE] Write complete")
+	return nil
 }
 
-func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) {
+func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) (err error) {
 	// fail if we didn't write any files yet
 	if db.RecordCount == 0 {
 		fmt.Println("[READ] Database has no files")
@@ -189,7 +205,8 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 
 	new_offset, err := file.Seek(location, io.SeekStart)
 	if err != nil {
-		log.Fatal("[READ] Error seeking the location ", err)
+		return fmt.Errorf("[READ] Error seeking the location: %v", err)
+		//log.Fatal("[READ] Error seeking the location ", err)
 	}
 
 	// read and write to custom writer interface, quite often the stdout
@@ -197,11 +214,13 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 
 	_, err = io.CopyN(dst, file, file_size)
 	if err != nil {
-		log.Fatal("[READ] Failed reading file and writing to custom io: ", err)
+		return fmt.Errorf("[READ] Failed reading file and writing to custom io: %v", err)
+		//log.Fatal("[READ] Failed reading file and writing to custom io: ", err)
 	}
 	cursor_position = new_offset + file_size
 
 	fmt.Printf("\n[READ END]\n")
+	return nil
 }
 
 func delete(file *os.File, db *DatabaseStructure, filename string) {

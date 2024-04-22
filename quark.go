@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 )
+
 //MARK: File Structure
 /*
 File Structure:
@@ -25,22 +26,24 @@ File Structure:
     Files:
         file 	 - any size
 ----------------------------------------
-test.bin => 
-	total_record_count, 
-	records[file_name, file_size], 
+test.bin =>
+	total_record_count,
+	records[file_name, file_size],
 	record_data
 */
 
-/*	MARK: Record
-	Record represents the structure of each record
+/*
+MARK: Record
+Record represents the structure of each record
 */
 type Record struct {
 	FileName [40]byte // [40]byte
 	Size     int64
 }
 
-/*	MARK: DataBaseStucture
-		DatabaseStructure represents the overall structure of the database.
+/*
+MARK: DataBaseStucture
+DatabaseStructure represents the overall structure of the database.
 */
 type DatabaseStructure struct {
 	RecordCount uint8
@@ -52,6 +55,7 @@ type Readlog struct {
 	FileName string
 	Time     int64
 }
+
 /*	MARK: Cursor Position	*/
 var cursor_position int64 = 0
 
@@ -61,21 +65,21 @@ func main() {
 	//	Database first argument error check
 	if flag.NArg() < 1 {
 		log.Fatal("Usage: quark <database.db>")
-	}else if name := flag.Arg(0);!strings.HasSuffix(name, ".bin") {
-		text	:= fmt.Sprintf(`
+	} else if name := flag.Arg(0); !strings.HasSuffix(name, ".bin") {
+		text := fmt.Sprintf(`
 		Error: The provided file '%s'
 		Does not have the expected '.bin' extension.
 		Please specify a binary file.
 		`, name)
 		log.Fatal(text)
-	}else if name == ".bin" {
-		text	:= fmt.Sprintf(`
+	} else if name == ".bin" {
+		text := fmt.Sprintf(`
 		Error: The provided file name '%s' is invalid.
 		Please specify a valid filename with 
 		an appropriate name before the '.bin' extension.
 		For example: 'test.bin'.
 		`, name)
-		log.Fatal(text)		
+		log.Fatal(text)
 	}
 
 	filepath_db := flag.Arg(0)
@@ -85,12 +89,12 @@ func main() {
 		RecordCount: 0,
 		Records:     []Record{},
 	}
-	// MARK: check file existence 
+	// MARK: check file existence
 	if _, err := os.Stat(filepath_db); os.IsNotExist(err) {
-	// IF NOT EXIST
+		// IF NOT EXIST
 		fmt.Printf("[MAIN] Creating a binary file '%s'\n", filepath_db)
-		file, err := os.Create(filepath_db)		
-		if err != nil {			
+		file, err := os.Create(filepath_db)
+		if err != nil {
 			log.Fatal("[MAIN] Error creating database: ", err)
 		}
 
@@ -108,7 +112,7 @@ func main() {
 	} else if err != nil {
 		log.Fatal(err)
 	} else {
-	//IF EXIST
+		//IF EXIST
 		fmt.Printf("[MAIN] Reading the binary file'%s'\n", filepath_db)
 		//File open with read-write permissions
 		file, err := os.OpenFile(filepath_db, os.O_RDWR, os.ModePerm)
@@ -119,7 +123,7 @@ func main() {
 			Read from the file
 			But because &db_structure.RecordCount is uint8
 			binary.Read() only reads uint8 size of file
-			Value passed on become just first byte (record_count)		
+			Value passed on become just first byte (record_count)
 		*/
 		if err := binary.Read(file, binary.LittleEndian, &db_structure.RecordCount); err != nil {
 			log.Fatal("[MAIN] Error reading first byte: ", err)
@@ -129,13 +133,13 @@ func main() {
 		for i := 0; i < int(db_structure.RecordCount); i++ {
 			var record Record
 			/* 	MARK:	READ filename
-				Read filename size of [40 byte]
+			Read filename size of [40 byte]
 			*/
 			if err := binary.Read(file, binary.LittleEndian, &record.FileName); err != nil {
 				log.Fatal("[MAIN] Error reading FileName: ", err)
 			}
 			/* 	MARK:	READ filesize
-				Read filename size of [8 byte]
+			Read filename size of [8 byte]
 			*/
 			if err := binary.Read(file, binary.LittleEndian, &record.Size); err != nil {
 				log.Fatal("[MAIN] Error reading size: ", err)
@@ -146,7 +150,7 @@ func main() {
 		// move cursor up to total record counts
 		move_cursor(&db_structure.Records)
 		fmt.Printf("[MAIN] %s has %d records and cursor position is at %d\n", file.Name(), db_structure.RecordCount, cursor_position)
-		fmt.Printf("\t%s\t-\t%s\n", "Record Name","Record Size")
+		fmt.Printf("\t%s\t-\t%s\n", "Record Name", "Record Size")
 		for _, val := range db_structure.Records {
 			fmt.Printf("\t%s\t\t-\t%v\n", val.FileName, val.Size)
 		}
@@ -164,22 +168,22 @@ ReadLoop:
 		scanner.Scan()
 		command := scanner.Text()
 		/*	MARK: User input
-				Waits user input
+			Waits user input
 		*/
 		if strings.HasPrefix(command, "read") {
 			/*	MARK: READ
-					Todo: When cache optimization is implemented, 
-					write only first to Stdout, cache rest
+				Todo: When cache optimization is implemented,
+				write only first to Stdout, cache rest
 
-					REDIS can be usefull
-					
-					AI: The suggested optimization involves implementing a 
-					caching mechanism. Instead of immediately writing all 
-					the file contents to os.Stdout, you would read and 
-					write only a portion of the file, while caching 
-					the remaining contents in memory or on disk. Subsequent 
-					reads would then fetch data from the cache rather 
-					than re-reading the entire file.
+				REDIS can be usefull
+
+				AI: The suggested optimization involves implementing a
+				caching mechanism. Instead of immediately writing all
+				the file contents to os.Stdout, you would read and
+				write only a portion of the file, while caching
+				the remaining contents in memory or on disk. Subsequent
+				reads would then fetch data from the cache rather
+				than re-reading the entire file.
 			*/
 			args := strings.Split(command, " ")
 			// ["read", "test.txt"]
@@ -188,18 +192,10 @@ ReadLoop:
 				fmt.Println("open <filename>")
 				continue ReadLoop
 			}
-			
-			start := time.Now()
-			read(file, db, args[1], os.Stdout)
-			end := time.Now()
-			duration := end.Sub(start)
-
-			fmt.Println("[REPL] Duration for Read ", duration)
-			//changes
-			timerWriter(args[1], duration)
-			readLog(db, args[1])
+			readWithTime(file, db, args[1], os.Stdout)
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
+			// place in database records
 			var order uint8 = db.RecordCount
 
 			if len(args) == 3 {
@@ -214,8 +210,10 @@ ReadLoop:
 				fmt.Println("write <filename> <order|optional>")
 				continue ReadLoop
 			}
-
-			write(file, db, args[1], order)
+			if err := write(file, db, args[1], order); err != nil {
+				log.Fatal(err)
+			}
+			
 		} else if strings.HasPrefix(command, "delete") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
@@ -428,7 +426,7 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 	for _, v := range n_db {
 		fmt.Println(byteReadable(v))
 		//changes
-		timerWriter(byteReadable(v),0)
+		timerWriter(byteReadable(v), 0)
 	}
 	return n_db
 }
