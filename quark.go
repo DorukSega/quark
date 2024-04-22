@@ -260,11 +260,16 @@ ReadLoop:
 }
 
 func readLog(db *DatabaseStructure, filename string) {
-	// fail if we didn't write any files yet
+	/* MARK: READLOG
+			Writing read order of each read file
+			filename	|	time
+			1.txt		|	181.1µs
+	*/
 	if db.RecordCount == 0 {
 		return
 	}
 	fileCheck := false
+
 	for _, record := range db.Records {
 		if record_name_compare(record.FileName, filename) {
 			fileCheck = true
@@ -272,16 +277,19 @@ func readLog(db *DatabaseStructure, filename string) {
 		}
 	}
 	if !fileCheck {
+		// if file is not exist exit
 		return
 	}
 
 	binaryName := filepath.Base(os.Args[1])
+	// name of binary file "test.bin"
 	csvPath := "./logs/" + binaryName + ".csv"
+	// name of csv file "./logs/test.bin.csv"
 
-	file_isnotexist := false
-
+	fileisnotexist := false
 	_, err_stat := os.Stat(csvPath)
-	file_isnotexist = os.IsNotExist(err_stat)
+	fileisnotexist = os.IsNotExist(err_stat)
+	//Check files existance
 
 	// Open the CSV file in append mode
 	file, err := os.OpenFile(csvPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -295,10 +303,10 @@ func readLog(db *DatabaseStructure, filename string) {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	if file_isnotexist {
+	if fileisnotexist {
 		headers := []string{"filename", "time"}
 		if err := writer.Write(headers); err != nil {
-			fmt.Println("Error writing headers to CSV:", err)
+			log.Fatal("Error writing headers to CSV:", err)
 			return
 		}
 	}
@@ -311,10 +319,6 @@ func readLog(db *DatabaseStructure, filename string) {
 		log.Fatal("[READLOG] Error writing row to CSV:", err)
 		return
 	}
-
-	//fmt.Println("Binary file name:", binaryName)
-	//fmt.Println("CSV file name:", csvName)
-	//fmt.Println("filename file name:", filename)
 }
 
 /*

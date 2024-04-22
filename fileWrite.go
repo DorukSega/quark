@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -165,37 +164,4 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 			}
 		}
 	}
-}
-
-func AI_read_example(filePath string) ([]byte, error) {
-	const chunkSize = 4 * 1024 
-	file, err := os.Open(filePath)
-    if err != nil {
-        return nil, err
-    }
-    defer file.Close()
-
-    // Get file size
-    fileInfo, err := file.Stat()
-    if err != nil {
-        return nil, err
-    }
-    fileSize := fileInfo.Size()
-
-    // Create a buffer and read the file in chunks
-    buffer := make([]byte, 0, fileSize)
-    reader := bufio.NewReader(file)
-    for {
-        chunk := make([]byte, chunkSize)
-        bytesRead, err := reader.Read(chunk)
-        if err != nil && err.Error() != "EOF" {
-            return nil, err
-        }
-        if bytesRead == 0 {
-            break
-        }
-        buffer = append(buffer, chunk[:bytesRead]...)
-    }
-    return buffer, nil
-	
 }

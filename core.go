@@ -9,6 +9,7 @@ import (
 )
 
 func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(err error) {
+	//	MARK: WRITE
 	if order > db.RecordCount {
 		fmt.Println("[WRITE] Order is unusable")
 		return
@@ -22,7 +23,6 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 	}
 	defer new_file.Close()
 
-	// Get file size
 	fileInfo, err := new_file.Stat()
 	if err != nil {
 		fmt.Println("[Write] Can't read file ", err)
@@ -47,8 +47,8 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 		return fmt.Errorf("[WRITE] Temporary file failed to create  %v", err)
 		//log.Fatal("[WRITE] Temporary file failed to create ", err)
 	}
-
 	metadata_point := binary_size(Record{}) * int64(order)
+	//	where to write file in record order
 
 	// Write the first byte  to the file
 	var first_byte uint8 = db.RecordCount + 1
@@ -58,8 +58,10 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 		//log.Fatal("[WRITE] Failed to write new record count ", err)
 	}
 
-	// Read data from the original file up to the record insertion point and write it to the temporary file
+	//	Read data from the original file up to 
+	//	the record insertion point and write it to the temporary file
 	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
+	// file place to first_byte 
 	if err != nil {
 		os.Remove(tempFile.Name())
 		return fmt.Errorf("[WRITE] Failed to seek start %v", err)
@@ -67,6 +69,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 	}
 
 	_, err = io.CopyN(tempFile, file, metadata_point)
+	// Copy until
 	if err != nil {
 		os.Remove(tempFile.Name())
 		return fmt.Errorf("[WRITE] Failed to write the old metadata %v", err)

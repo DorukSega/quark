@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 )
+
 func readWithTime(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) (difference time.Duration, err error) {
         start := time.Now()
         if err = read(file, db, filename, dst); err != nil {
