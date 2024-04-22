@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"encoding/csv"
 	"flag"
@@ -193,9 +194,20 @@ ReadLoop:
 				continue ReadLoop
 			}
 			readWithTime(file, db, args[1], os.Stdout)
+		} else if strings.HasPrefix(command, "memread") {
+			args := strings.Split(command, " ")
+			if len(args) != 2 {
+				fmt.Println("Please specify the file name like below:")
+				fmt.Println("open <filename>")
+				continue ReadLoop
+			}
+			var buffer bytes.Buffer
+			fmt.Println("Before: ", buffer.Len())
+			readWithTime(file, db, args[1], &buffer)
+			fmt.Println("After: ", buffer.Len())
 		} else if strings.HasPrefix(command, "write") {
 			/*	MARKED: WRITE
-			*/
+			 */
 			args := strings.Split(command, " ")
 			// ["write", "test.txt"] or ["write", "test.txt", "3"]
 			var order uint8 = db.RecordCount
@@ -217,11 +229,11 @@ ReadLoop:
 
 			if err := write(file, db, args[1], order); err != nil {
 				log.Fatal(err)
-			}			
+			}
 		} else if strings.HasPrefix(command, "delete") {
 			/*	MARKED: DELETE
-					Todo: When cache optimization is implemented, 
-					write only first to Stdout, cache rest
+				Todo: When cache optimization is implemented,
+				write only first to Stdout, cache rest
 			*/
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
@@ -231,16 +243,16 @@ ReadLoop:
 			delete(file, db, args[1])
 		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
 			/*	MARKED: CLOSE
-			*/
+			 */
 			closeWithTime()
 			break ReadLoop
 		} else if strings.HasPrefix(command, "optimize1") {
 			/*	MARKED: OPTIMIZE
-			*/
+			 */
 			reorgWithTime(file, db)
 		} else if strings.HasPrefix(command, "code") {
 			/*	MARKED: CODE
-			*/
+			 */
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
 				fmt.Println("write <filename> <order|optional>")
@@ -249,21 +261,21 @@ ReadLoop:
 			codeExecuter(file, db, args[1])
 		} else if strings.HasPrefix(command, "help") {
 			/*	MARKED: HELP
-			*/
+			 */
 			print_help()
 		} else {
 			fmt.Println("Unknown command. Please use one of the following: ")
 			print_help()
 		}
 	}
-	defer file.Close()
+	file.Close()
 }
 
 func readLog(db *DatabaseStructure, filename string) {
 	/* MARK: READLOG
-			Writing read order of each read file
-			filename	|	time
-			1.txt		|	181.1µs
+	Writing read order of each read file
+	filename	|	time
+	1.txt		|	181.1µs
 	*/
 	if db.RecordCount == 0 {
 		return
@@ -472,6 +484,10 @@ func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
 	}
 	if next_index != 0 {
 		falgo_recursive(n_db, falgo, next_index)
+	}
+	if index < 0 || index >= len(*falgo) {
+		fmt.Println("Error: Index is out of bounds")
+		return
 	}
 	*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
 }

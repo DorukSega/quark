@@ -8,27 +8,27 @@ import (
 )
 
 func readWithTime(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) (difference time.Duration, err error) {
-        start := time.Now()
-        if err = read(file, db, filename, dst); err != nil {
-            return 0, err
-        }
-        end := time.Now()
-        difference = end.Sub(start)
+	start := time.Now()
+	if err = read(file, db, filename, dst); err != nil {
+		return 0, err
+	}
+	end := time.Now()
+	difference = end.Sub(start)
 
-		fmt.Println("[REPL] Duration for Read ", difference)
-		timerWriter(filename, difference)
-		readLog(db, filename)
+	fmt.Println("[REPL] Duration for Read ", difference)
+	timerWriter(filename, difference)
+	readLog(db, filename)
 
-        return difference, nil
+	return difference, nil
 }
 
-func closeWithTime()  {
+func closeWithTime() {
 	message := "FILE CLOSED"
-	timerWriter(message, 0)	
+	timerWriter(message, 0)
 }
 
-func reorgWithTime(file *os.File, db *DatabaseStructure)  {
-	startMessage:= "- - - OPTIMIZER STARTED - - -"
+func reorgWithTime(file *os.File, db *DatabaseStructure) {
+	startMessage := "- - - OPTIMIZER STARTED - - -"
 	finishMessage := "- - - OPTIMIZER ENDED - - -"
 
 	timerWriter(startMessage, 0)
@@ -37,9 +37,10 @@ func reorgWithTime(file *os.File, db *DatabaseStructure)  {
 }
 
 func print_help() {
-	fmt.Println("\tread   <file> <order|optional>")
-	fmt.Println("\twrite  <file> <order|optional>")
+	fmt.Println("\tread  	 <file> <order|optional>")
+	fmt.Println("\twrite  	 <file> <order|optional>")
+	fmt.Println("\tmemread   <file> <order|optional>")
+	fmt.Println("\tdelete 	 <file>")
 	fmt.Println("\toptimize1")
-	fmt.Println("\tdelete <file>")
 	fmt.Println("\tclose OR exit")
 }
