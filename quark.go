@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"encoding/csv"
 	"flag"
@@ -156,6 +157,23 @@ ReadLoop:
 			fmt.Println("[REPL] Duration for Read ", duration)
 			readLog(db, args[1])
 			// Todo(salih): readlog(file.Name(), args[1])
+		} else if strings.HasPrefix(command, "memread") {
+			args := strings.Split(command, " ")
+			if len(args) != 2 {
+				fmt.Println("open <filename>")
+				continue ReadLoop
+			}
+
+			start := time.Now()
+			var buffer bytes.Buffer
+			fmt.Println("Before: ", buffer.Len())
+			read(file, db, args[1], &buffer)
+			fmt.Println("After: ", buffer.Len())
+			end := time.Now()
+
+			duration := end.Sub(start)
+			fmt.Println("[REPL] Duration for Read ", duration)
+			readLog(db, args[1])
 		} else if strings.HasPrefix(command, "write") {
 			args := strings.Split(command, " ")
 			var order uint8 = db.RecordCount
@@ -200,9 +218,10 @@ ReadLoop:
 }
 
 func print_help() {
-	fmt.Println("\tread   <file> <order|optional>")
-	fmt.Println("\twrite  <file> <order|optional>")
-	fmt.Println("\tdelete <file>")
+	fmt.Println("\tread    	 <file> <order|optional>")
+	fmt.Println("\twrite  	 <file> <order|optional>")
+	fmt.Println("\tdelete 	 <file>")
+	fmt.Println("\rmemread   <file> <order|optional>")
 	fmt.Println("\tclose OR exit")
 }
 
@@ -413,6 +432,10 @@ func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
 	}
 	if next_index != 0 {
 		falgo_recursive(n_db, falgo, next_index)
+	}
+	if index < 0 || index >= len(*falgo) {
+		fmt.Println("Error: Index is out of bounds")
+		return
 	}
 	*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
 }
