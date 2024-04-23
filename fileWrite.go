@@ -89,13 +89,15 @@ func timerWriter(filename string, timer time.Duration) {
 
 func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 	file, err := os.Open(filepath)
-
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer file.Close()
+	//open file for code execution and otomate for closing at the end
 
 	reader := csv.NewReader(file)
+	// reader for reading line by line
+
 	for {
 		record, err := reader.Read()
 		var lines = make([]string, 0)
@@ -107,63 +109,86 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 			log.Fatal(err)
 		}
 	ReadLoop:
-		for _, element := range lines {
-			if strings.HasPrefix(element, "read") {
-				args := strings.Split(element, " ")
-				start := time.Now()
-				var buffer bytes.Buffer
-				read(myOS, db, args[1], &buffer)
-				end := time.Now()
-				duration := end.Sub(start)
-				fmt.Println("[REPL] Duration for Read ", duration)
-				timerWriter(args[1], duration)
-				readLog(db, args[1])
-
-			} else if strings.HasPrefix(element, "write") {
-				args := strings.Split(element, " ")
-				var order uint8 = db.RecordCount
-
-				if len(args) == 3 {
-					t_ord, err := strconv.Atoi(args[2])
-					if err != nil {
-						fmt.Println("write <filename> <order|optional>")
-						continue ReadLoop
-					}
-					order = uint8(t_ord)
-
-				} else if len(args) != 2 {
-					fmt.Println("write <filename> <order|optional>")
-					continue ReadLoop
-				}
-
-				write(myOS, db, args[1], order)
-
-			} else if strings.HasPrefix(element, "delete") {
-				args := strings.Split(element, " ")
-				if len(args) != 2 {
-					fmt.Println("delete <filename>")
-					continue ReadLoop
-				}
-				// Todo: When cache optimization is implemented, write only first to Stdout, cache rest
-				delete(myOS, db, args[1])
-
-			} else if strings.HasPrefix(element, "close") || strings.HasPrefix(element, "exit") {
-				timerWriter("FILE CLOSED", 0)
-				break ReadLoop
-
-			} else if strings.HasPrefix(element, "optimize1") {
-				timerWriter("- - - OPTIMIZER STARTED - - -", 0)
-				reorg(file, db, optimize_falgo(db))
-				timerWriter("- - - OPTIMIZER ENDED - - -", 0)
-
-			} else if strings.HasPrefix(element, "help") {
-				print_help()
-
-			} else {
-				fmt.Println("Unknown command.")
-				print_help()
-
+		for _, command := range lines {			
+			err	:=	userInputReceive(command, file, db)
+			if err!= nil {
+				break ReadLoop			
 			}
 		}
 	}
+}
+
+func userInputReceive(command string, file *os.File, db *DatabaseStructure)(err error){	
+	if strings.HasPrefix(command, "read") {
+		/*	Todo: When cache optimization is implemented,
+			write only first to Stdout, cache rest
+		*/
+		args := strings.Split(command, " ")
+		// ["read", "test.txt"]
+		if len(args) != 2 {
+			fmt.Println("Please specify the file name like below:")
+			fmt.Println("open <filename>")
+			return nil
+		}
+		readWithTime(file, db, args[1], os.Stdout)
+	} else if strings.HasPrefix(command, "memread") {
+		args := strings.Split(command, " ")
+		if len(args) != 2 {
+			fmt.Println("Please specify the file name like below:")
+			fmt.Println("open <filename>")
+			return nil
+		}
+		var buffer bytes.Buffer
+		fmt.Println("Before: ", buffer.Len())
+		readWithTime(file, db, args[1], &buffer)
+		fmt.Println("After: ", buffer.Len())
+	} else if strings.HasPrefix(command, "write") {
+		args := strings.Split(command, " ")
+		// ["write", "test.txt"] or ["write", "test.txt", "3"]
+		var order uint8 = db.RecordCount
+		// place in database records
+
+		if len(args) == 3 {
+			// 3rd argument is order so conver into int
+			t_ord, err := strconv.Atoi(args[2])
+			if err != nil {
+				fmt.Println("write <filename> <order|optional>")
+				return nil
+			}
+			order = uint8(t_ord)
+		} else if len(args) != 2 {
+			fmt.Println("write <filename> <order|optional>")
+			return nil
+		}
+
+		if err := write(file, db, args[1], order); err != nil {
+			log.Fatal(err)
+		}
+	} else if strings.HasPrefix(command, "delete") {
+		//	Todo: When cache optimization is implemented, write only first to Stdout, cache rest
+		args := strings.Split(command, " ")
+		if len(args) != 2 {
+			fmt.Println("delete <filename>")
+			return nil
+		}
+		delete(file, db, args[1])
+	} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
+		closeWithTime()
+		return fmt.Errorf("close")
+	} else if strings.HasPrefix(command, "optimize1") {
+		reorgWithTime(file, db)
+	} else if strings.HasPrefix(command, "code") {
+		args := strings.Split(command, " ")
+		if len(args) != 2 {
+			fmt.Println("write <filename> <order|optional>")
+			return nil
+		}
+		codeExecuter(file, db, args[1])
+	} else if strings.HasPrefix(command, "help") {
+		print_help()
+	} else {
+		fmt.Println("Unknown command. Please use one of the following: ")
+		print_help()
+	}
+	return nil
 }

@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/csv"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -33,31 +34,23 @@ test.bin =>
 	record_data
 */
 
-/*
-MARK: Record
-Record represents the structure of each record
-*/
+//	Record represents the structure of each record
 type Record struct {
 	FileName [40]byte // [40]byte
 	Size     int64
 }
 
-/*
-MARK: DataBaseStucture
-DatabaseStructure represents the overall structure of the database.
-*/
+//	DatabaseStructure represents the overall structure of the database.
 type DatabaseStructure struct {
 	RecordCount uint8
 	Records     []Record
 }
 
-/*	MARK: ReadLog	*/
 type Readlog struct {
 	FileName string
 	Time     int64
 }
 
-/*	MARK: Cursor Position	*/
 var cursor_position int64 = 0
 
 func main() {
@@ -90,7 +83,7 @@ func main() {
 		RecordCount: 0,
 		Records:     []Record{},
 	}
-	// MARK: check file existence
+	//	check file existence
 	if _, err := os.Stat(filepath_db); os.IsNotExist(err) {
 		// IF NOT EXIST
 		fmt.Printf("[MAIN] Creating a binary file '%s'\n", filepath_db)
@@ -99,7 +92,6 @@ func main() {
 			log.Fatal("[MAIN] Error creating database: ", err)
 		}
 
-		// MARK: First Byte
 		var first_byte uint8 = 0
 		err = binary.Write(file, binary.LittleEndian, first_byte)
 		if err != nil {
@@ -120,8 +112,7 @@ func main() {
 		if err != nil {
 			log.Fatal("[MAIN] Error opening database: ", err)
 		}
-		/*	MARK:	READ record_count
-			Read from the file
+		/*	Read from the file
 			But because &db_structure.RecordCount is uint8
 			binary.Read() only reads uint8 size of file
 			Value passed on become just first byte (record_count)
@@ -133,15 +124,12 @@ func main() {
 		//	Read each record
 		for i := 0; i < int(db_structure.RecordCount); i++ {
 			var record Record
-			/* 	MARK:	READ filename
-			Read filename size of [40 byte]
-			*/
+			//	Read filename size of [40 byte]
 			if err := binary.Read(file, binary.LittleEndian, &record.FileName); err != nil {
 				log.Fatal("[MAIN] Error reading FileName: ", err)
 			}
-			/* 	MARK:	READ filesize
-			Read filename size of [8 byte]
-			*/
+			//	Read filename size of [8 byte]
+			
 			if err := binary.Read(file, binary.LittleEndian, &record.Size); err != nil {
 				log.Fatal("[MAIN] Error reading size: ", err)
 			}
@@ -168,112 +156,17 @@ ReadLoop:
 		fmt.Print("> ")
 		scanner.Scan()
 		command := scanner.Text()
-		/*	MARK: User input
-			Waits user input
-		*/
-		if strings.HasPrefix(command, "read") {
-			/*	MARK: READ
-				Todo: When cache optimization is implemented,
-				write only first to Stdout, cache rest
-
-				REDIS can be usefull
-
-				AI: The suggested optimization involves implementing a
-				caching mechanism. Instead of immediately writing all
-				the file contents to os.Stdout, you would read and
-				write only a portion of the file, while caching
-				the remaining contents in memory or on disk. Subsequent
-				reads would then fetch data from the cache rather
-				than re-reading the entire file.
-			*/
-			args := strings.Split(command, " ")
-			// ["read", "test.txt"]
-			if len(args) != 2 {
-				fmt.Println("Please specify the file name like below:")
-				fmt.Println("open <filename>")
-				continue ReadLoop
-			}
-			readWithTime(file, db, args[1], os.Stdout)
-		} else if strings.HasPrefix(command, "memread") {
-			args := strings.Split(command, " ")
-			if len(args) != 2 {
-				fmt.Println("Please specify the file name like below:")
-				fmt.Println("open <filename>")
-				continue ReadLoop
-			}
-			var buffer bytes.Buffer
-			fmt.Println("Before: ", buffer.Len())
-			readWithTime(file, db, args[1], &buffer)
-			fmt.Println("After: ", buffer.Len())
-		} else if strings.HasPrefix(command, "write") {
-			/*	MARKED: WRITE
-			 */
-			args := strings.Split(command, " ")
-			// ["write", "test.txt"] or ["write", "test.txt", "3"]
-			var order uint8 = db.RecordCount
-			// place in database records
-
-			if len(args) == 3 {
-				// 3rd argument is order so conver into int
-				t_ord, err := strconv.Atoi(args[2])
-				if err != nil {
-					fmt.Println("write <filename> <order|optional>")
-					continue ReadLoop
-				}
-				order = uint8(t_ord)
-
-			} else if len(args) != 2 {
-				fmt.Println("write <filename> <order|optional>")
-				continue ReadLoop
-			}
-
-			if err := write(file, db, args[1], order); err != nil {
-				log.Fatal(err)
-			}
-		} else if strings.HasPrefix(command, "delete") {
-			/*	MARKED: DELETE
-				Todo: When cache optimization is implemented,
-				write only first to Stdout, cache rest
-			*/
-			args := strings.Split(command, " ")
-			if len(args) != 2 {
-				fmt.Println("delete <filename>")
-				continue ReadLoop
-			}
-			delete(file, db, args[1])
-		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
-			/*	MARKED: CLOSE
-			 */
-			closeWithTime()
-			break ReadLoop
-		} else if strings.HasPrefix(command, "optimize1") {
-			/*	MARKED: OPTIMIZE
-			 */
-			reorgWithTime(file, db)
-		} else if strings.HasPrefix(command, "code") {
-			/*	MARKED: CODE
-			 */
-			args := strings.Split(command, " ")
-			if len(args) != 2 {
-				fmt.Println("write <filename> <order|optional>")
-				continue ReadLoop
-			}
-			codeExecuter(file, db, args[1])
-		} else if strings.HasPrefix(command, "help") {
-			/*	MARKED: HELP
-			 */
-			print_help()
-		} else {
-			fmt.Println("Unknown command. Please use one of the following: ")
-			print_help()
+		//	Waits user input
+		err	:=	userInputReceive(command, file, db)
+		if err!= nil {
+			break ReadLoop			
 		}
 	}
 	file.Close()
 }
 
 func readLog(db *DatabaseStructure, filename string) {
-	/* MARK: READLOG
-	Writing read order of each read file
+	/*	Writing read order of each read file
 	filename	|	time
 	1.txt		|	181.1µs
 	*/
@@ -491,3 +384,5 @@ func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
 	}
 	*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
 }
+
+
