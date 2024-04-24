@@ -1,21 +1,45 @@
-write test.txt
-write test2.txt
-write test3.txt
-write test4.txt
+write bigdata/test.txt
+write bigdata/test2.txt
+write bigdata/test3.txt
+write bigdata/test4.txt
 
-read test.txt
-read test2.txt
-read test3.txt
-read test4.txt
+memread test.txt
+memread test.txt
+memread test.txt
+memread test.txt
+memread test.txt
 
-read test.txt
-read test2.txt
-read test3.txt
-read test4.txt
+memread test2.txt
+memread test2.txt
+memread test2.txt
+memread test2.txt
+
+memread test3.txt
+memread test3.txt
+memread test3.txt
+
+memread test4.txt
+memread test4.txt
+
+memread test.txt
+memread test2.txt
+memread test3.txt
+memread test4.txt
+
+memread test.txt
+memread test2.txt
+memread test3.txt
+memread test4.txt
 
 optimize1
 
-read test.txt
-read test2.txt
-read test3.txt
-read test4.txt
+memread test.txt
+memread test2.txt
+memread test3.txt
+memread test4.txt
+
+memread test.txt
+memread test2.txt
+memread test3.txt
+memread test4.txt
+

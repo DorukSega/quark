@@ -110,7 +110,7 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 		}
 	ReadLoop:
 		for _, command := range lines {			
-			err	:=	userInputReceive(command, file, db)
+			err	:=	userInputReceive(command, myOS, db)
 			if err!= nil {
 				break ReadLoop			
 			}

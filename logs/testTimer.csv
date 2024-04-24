@@ -1,10 +1,52 @@
 filename,time
 
-2.txt,283.2µs
-1.txt,181.1µs
+test.txt,973.137ms
+test.txt,775.3625ms
+test.txt,403.4646ms
+test.txt,471.874ms
 
-FILE CLOSED,0s
+test.txt,404.8085ms
+test2.txt,399.4505ms
+test2.txt,392.3016ms
+test2.txt,545.6076ms
 
+test2.txt,398.4641ms
+test3.txt,413.8085ms
+test3.txt,397.7396ms
+test3.txt,417.6075ms
+
+test4.txt,393.5076ms
+test4.txt,638.5293ms
+test.txt,402.3682ms
+test2.txt,397.2425ms
+
+test3.txt,398.5515ms
+test4.txt,455.8464ms
+test.txt,405.0648ms
+test2.txt,570.2289ms
+
+test3.txt,398.745ms
+test4.txt,466.3479ms
+
+- - - OPTIMIZER STARTED - - -,0s
+
+test.txt,0s
+test2.txt,0s
+test3.txt,0s
+test4.txt,0s
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+test.txt,1.5547618s
+test2.txt,452.057ms
+test3.txt,461.6003ms
+test4.txt,429.8647ms
+
+test.txt,401.7096ms
+test2.txt,404.8408ms
+test3.txt,401.3341ms
+test4.txt,417.8418ms
 
 FILE CLOSED,0s
 

@@ -2,10 +2,8 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"encoding/csv"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
