@@ -83,6 +83,7 @@ func timerWriter(filename string, timer time.Duration) {
 	} else if filename == "- - - OPTIMIZER ENDED - - -" {
 		newRow := []string{}
 		writer.Write(newRow)
+		skipper = -1
 
 	}
 }

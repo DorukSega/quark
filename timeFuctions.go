@@ -30,10 +30,14 @@ func closeWithTime() {
 func reorgWithTime(file *os.File, db *DatabaseStructure) {
 	startMessage := "- - - OPTIMIZER STARTED - - -"
 	finishMessage := "- - - OPTIMIZER ENDED - - -"
+	start := time.Now()
 
 	timerWriter(startMessage, 0)
 	reorg(file, db, optimize_falgo(db))
-	timerWriter(finishMessage, 0)
+	end := time.Now()
+	difference := end.Sub(start)
+	
+	timerWriter(finishMessage, difference)
 }
 
 func print_help() {

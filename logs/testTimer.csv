@@ -1,52 +1,181 @@
-filename,time
+filename                      ,time
 
-test.txt,973.137ms
-test.txt,775.3625ms
-test.txt,403.4646ms
-test.txt,471.874ms
+test.txt                      ,857.6246ms
+test.txt                      ,741.6568ms
+test.txt                      ,511.1863ms
+test.txt                      ,434.2107ms
 
-test.txt,404.8085ms
-test2.txt,399.4505ms
-test2.txt,392.3016ms
-test2.txt,545.6076ms
+test.txt                      ,415.5713ms
+test2.txt                     ,2.937738s
+test2.txt                     ,418.596ms
+test2.txt                     ,436.3216ms
 
-test2.txt,398.4641ms
-test3.txt,413.8085ms
-test3.txt,397.7396ms
-test3.txt,417.6075ms
+test2.txt                     ,432.5178ms
+test3.txt                     ,468.0448ms
+test3.txt                     ,421.3966ms
+test3.txt                     ,418.854ms
 
-test4.txt,393.5076ms
-test4.txt,638.5293ms
-test.txt,402.3682ms
-test2.txt,397.2425ms
+test4.txt                     ,411.0251ms
+test4.txt                     ,416.7744ms
+test.txt                      ,417.3884ms
+test2.txt                     ,414.6942ms
 
-test3.txt,398.5515ms
-test4.txt,455.8464ms
-test.txt,405.0648ms
-test2.txt,570.2289ms
+test3.txt                     ,438.3691ms
+test4.txt                     ,426.6413ms
+test.txt                      ,436.9293ms
+test2.txt                     ,449.3472ms
 
-test3.txt,398.745ms
-test4.txt,466.3479ms
+test3.txt                     ,1.6953371s
+test4.txt                     ,2.4258072s
 
-- - - OPTIMIZER STARTED - - -,0s
+- - - OPTIMIZER STARTED - - - ,0s
 
-test.txt,0s
-test2.txt,0s
-test3.txt,0s
-test4.txt,0s
+test.txt                      ,0s
+test2.txt                     ,0s
+test3.txt                     ,0s
+test4.txt                     ,0s
 
-- - - OPTIMIZER ENDED - - -,0s
+- - - OPTIMIZER ENDED - - -   ,41.4170741s
+
+test.txt                      ,2.3879761s
+test2.txt                     ,1.8718169s
+test3.txt                     ,414.3965ms
+test4.txt                     ,436.5199ms
+
+test.txt                      ,425.8783ms
+test2.txt                     ,433.2769ms
+test3.txt                     ,1.6351807s
+test4.txt                     ,2.7588971s
+
+test.txt                      ,3.0453035s
+test2.txt                     ,2.4706389s
+test3.txt                     ,4.0538601s
+test4.txt                     ,2.4248913s
+
+test.txt                      ,2.5303139s
+test2.txt                     ,2.7341298s
+test3.txt                     ,2.9236962s
+test4.txt                     ,3.0590796s
+
+FILE CLOSED                   ,0s
 
 
-test.txt,1.5547618s
-test2.txt,452.057ms
-test3.txt,461.6003ms
-test4.txt,429.8647ms
+test.txt                      ,3.1257409s
+test.txt                      ,782.2745ms
+test.txt                      ,421.4003ms
+test.txt                      ,431.4108ms
 
-test.txt,401.7096ms
-test2.txt,404.8408ms
-test3.txt,401.3341ms
-test4.txt,417.8418ms
+test.txt                      ,437.4902ms
+test2.txt                     ,3.0147517s
+test2.txt                     ,484.9147ms
+test2.txt                     ,424.2363ms
 
-FILE CLOSED,0s
+test2.txt                     ,435.6026ms
+test3.txt                     ,2.5455716s
+test3.txt                     ,432.3147ms
+test3.txt                     ,443.4672ms
+
+test4.txt                     ,2.5884763s
+test4.txt                     ,496.2637ms
+test.txt                      ,3.1296618s
+test2.txt                     ,3.0080866s
+
+test3.txt                     ,2.6089494s
+test4.txt                     ,2.6773405s
+test.txt                      ,3.4773473s
+test2.txt                     ,3.2650422s
+
+test3.txt                     ,2.6223376s
+test4.txt                     ,2.5514577s
+test.txt                      ,3.0425288s
+test2.txt                     ,3.0868329s
+
+test3.txt                     ,2.6182353s
+test4.txt                     ,2.7137277s
+test.txt                      ,3.2077263s
+test2.txt                     ,3.0482303s
+
+test3.txt                     ,2.6467612s
+test4.txt                     ,2.60666s
+test.txt                      ,3.1602446s
+test2.txt                     ,3.002765s
+
+test3.txt                     ,2.6380352s
+test4.txt                     ,2.5998223s
+test.txt                      ,3.1272015s
+test2.txt                     ,2.9924029s
+
+test3.txt                     ,2.8508201s
+test4.txt                     ,2.5965677s
+test.txt                      ,3.1427793s
+test2.txt                     ,3.0125829s
+
+test3.txt                     ,2.6514869s
+test4.txt                     ,2.6019377s
+test.txt                      ,3.2357923s
+test2.txt                     ,3.1040425s
+
+test3.txt                     ,2.6976136s
+test4.txt                     ,2.6725997s
+
+- - - OPTIMIZER STARTED - - - ,0s
+
+test.txt                      ,0s
+test2.txt                     ,0s
+test3.txt                     ,0s
+test4.txt                     ,0s
+
+- - - OPTIMIZER ENDED - - -   ,38.11463s
+
+test.txt                      ,2.6005288s
+test2.txt                     ,2.5477222s
+test3.txt                     ,2.5050095s
+test4.txt                     ,2.1770778s
+
+test.txt                      ,2.5187842s
+test2.txt                     ,2.5641135s
+test3.txt                     ,2.4663471s
+test4.txt                     ,2.4352339s
+
+test.txt                      ,2.5138136s
+test2.txt                     ,2.4765754s
+test3.txt                     ,2.4993834s
+test4.txt                     ,2.5050878s
+
+test.txt                      ,2.5649645s
+test2.txt                     ,2.4986296s
+test3.txt                     ,2.5194832s
+test4.txt                     ,2.5131919s
+
+test.txt                      ,2.52773s
+test2.txt                     ,2.4983261s
+test3.txt                     ,2.5129578s
+test4.txt                     ,2.5525642s
+
+test.txt                      ,2.5392945s
+test2.txt                     ,2.5088941s
+test3.txt                     ,2.4846354s
+test4.txt                     ,2.5196391s
+
+test.txt                      ,2.5512176s
+test2.txt                     ,2.541169s
+test3.txt                     ,2.5440053s
+test4.txt                     ,2.5624508s
+
+test.txt                      ,2.5880833s
+test2.txt                     ,2.5480753s
+test3.txt                     ,2.5370024s
+test4.txt                     ,2.5980204s
+
+test.txt                      ,2.6145922s
+test2.txt                     ,2.5071032s
+test3.txt                     ,2.51134s
+test4.txt                     ,2.5242986s
+
+test.txt                      ,2.5278123s
+test2.txt                     ,2.5064208s
+test3.txt                     ,2.4613657s
+test4.txt                     ,2.5077839s
+
+FILE CLOSED                   ,0s
 
