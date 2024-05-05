@@ -16,7 +16,6 @@ import (
 	"time"
 )
 
-//MARK: File Structure
 /*
 File Structure:
     Record Count - uint8
@@ -246,8 +245,10 @@ type Falgo struct {
 }
 
 func optimize_falgo(db *DatabaseStructure) [][40]byte {
+
 	binaryName := filepath.Base(os.Args[1])
 	csvPath := "./logs/" + binaryName + ".csv"
+	// get user access time exp."./logs/test.bin.csv"
 
 	file, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
 	if err != nil {
@@ -258,6 +259,7 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 	reader := csv.NewReader(file)
 
 	_, err = reader.Read()
+	//test is ist reading
 	if err != nil {
 		log.Fatal("[OPTMZ1] Reader can't read:", err)
 		return nil
@@ -280,15 +282,31 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 			Time:     time,
 		})
 	}
-	//fmt.Println(records)
+	/*MARK: for loop explain
+	reader is test.bin.csv file access time history
+	raw record: takes each line of access time history
+	time is string time to Int time
+	append records each ReadLof{}	
+	*/
+	// reads each records filename and file access time
+	// and append to the records
+
 	falgo_records := []Falgo{}
+	//falgo_records => Falgo array file have filename,totalweight,edges
+
 	for _, recdb := range db.Records {
 		falgo_records = append(falgo_records, Falgo{
 			FileName:    byteReadable(recdb.FileName),
+			// filename into byte format filename
 			TotalWeight: 0,
 			Edges:       []Edge{},
 		})
 	}
+	/*Mark: for loop explain
+		takes rach record from database
+		appends each on of files to falgo_records
+		Note: filenane changes into byteFileName
+	*/
 
 	for ir, rec := range records {
 		if ir+1 == len(records) {
@@ -323,7 +341,21 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 			}
 		}
 	}
-	//fmt.Println(falgo_records)
+	/*MARK:for loop explain
+	rec => each readLog
+	
+	2.nd for loop checks which file is we are checking 
+		by looping every item in fargo records
+	fal => current item in falgo_records
+	
+	if next file is itself weight ++ en exit
+	
+	if => there is edge named like nextfilename
+		check until find same name is current edge
+		and add to the weight
+	else => create a edge named with next filename
+	*/
+
 	n_db := [][40]byte{}
 	// start with largest total weight, go to largest edge
 	// continue until consumed, start again with the rest
@@ -331,7 +363,15 @@ func optimize_falgo(db *DatabaseStructure) [][40]byte {
 		sort.Slice(falgo_records, func(i, j int) bool {
 			return falgo_records[i].TotalWeight > falgo_records[j].TotalWeight
 		})
+		/* MARK: for loop explain
+			sortSlice => sort according to totalweight
+		*/
 		falgo_recursive(&n_db, &falgo_records, 0)
+		/*MARK: Falgo recursive 
+			looks like depth-first traversal 
+			or Directed Acyclic Graph:  no cycles only move forward, never looping back
+
+		*/
 	}
 	for _, v := range n_db {
 		fmt.Println(byteReadable(v))
@@ -358,6 +398,7 @@ func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
 			}
 		}
 	}
+
 
 	// write
 	*n_db = append(*n_db, truncateString(val.FileName))
