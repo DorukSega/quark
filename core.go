@@ -8,7 +8,7 @@ import (
 	"os"
 )
 
-func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(err error) {
+func write(file *os.File, db *DatabaseStructure, filepath string, order uint8) (err error) {
 	//	MARK: WRITE
 	if order > db.RecordCount {
 		fmt.Println("[WRITE] Order is unusable")
@@ -43,7 +43,7 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 
 	// Create a temporary file for writing
 	tempFile, err := os.CreateTemp("./", "tempfile")
-	if err != nil {		
+	if err != nil {
 		return fmt.Errorf("[WRITE] Temporary file failed to create  %v", err)
 		//log.Fatal("[WRITE] Temporary file failed to create ", err)
 	}
@@ -58,10 +58,10 @@ func write(file *os.File, db *DatabaseStructure, filepath string, order uint8)(e
 		//log.Fatal("[WRITE] Failed to write new record count ", err)
 	}
 
-	//	Read data from the original file up to 
+	//	Read data from the original file up to
 	//	the record insertion point and write it to the temporary file
 	_, err = file.Seek(binary_size(first_byte), io.SeekStart)
-	// file place to first_byte 
+	// file place to first_byte
 	if err != nil {
 		os.Remove(tempFile.Name())
 		return fmt.Errorf("[WRITE] Failed to seek start %v", err)
@@ -205,24 +205,25 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 	}
 	// seek to the location
 	//fmt.Println("[READ] Read location for debug purposes", location)
-
-	new_offset, err := file.Seek(location, io.SeekStart)
-	if err != nil {
-		return fmt.Errorf("[READ] Error seeking the location: %v", err)
-		//log.Fatal("[READ] Error seeking the location ", err)
+	if cursor_position != location {
+		new_offset, err := file.Seek(location, io.SeekStart)
+		if err != nil {
+			return fmt.Errorf("[READ] Error seeking the location: %v", err)
+			//log.Fatal("[READ] Error seeking the location ", err)
+		}
+		cursor_position = new_offset + file_size
 	}
 
 	// read and write to custom writer interface, quite often the stdout
-	fmt.Println("[READ START]")
+	//fmt.Println("[READ START]")
 
 	_, err = io.CopyN(dst, file, file_size)
 	if err != nil {
 		return fmt.Errorf("[READ] Failed reading file and writing to custom io: %v", err)
 		//log.Fatal("[READ] Failed reading file and writing to custom io: ", err)
 	}
-	cursor_position = new_offset + file_size
 
-	fmt.Printf("\n[READ END]\n")
+	//fmt.Printf("\n[READ END]\n")
 	return nil
 }
 
@@ -483,5 +484,5 @@ func reorg(file *os.File, db *DatabaseStructure, new_rec [][40]byte) {
 		log.Fatal("[REORG] Error removing temporary file:", err)
 	}
 
-	fmt.Println("[REORG] Write complete")
+	fmt.Println("[REORG] Reorganise complete")
 }

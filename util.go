@@ -103,3 +103,21 @@ func read_readlog(csvPath string) []Readlog {
 	}
 	return records
 }
+
+func create_file(filepath_db string) *os.File {
+
+	file, err := os.Create(filepath_db)
+	if err != nil {
+		log.Fatal("[MAIN] Error creating database: ", err)
+	}
+
+	// MARK: First Byte
+	var first_byte uint8 = 0
+	err = binary.Write(file, binary.LittleEndian, first_byte)
+	if err != nil {
+		log.Fatal("[MAIN] Error writing to database: ", err)
+	}
+	// move cursor_position to first_byte
+	cursor_position += binary_size(first_byte)
+	return file
+}

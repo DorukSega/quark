@@ -117,7 +117,7 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 				duration := end.Sub(start)
 				fmt.Println("[REPL] Duration for Read ", duration)
 				timerWriter(args[1], duration)
-				readLog(db, args[1])
+				readLog(os.Args[1], db, args[1])
 
 			} else if strings.HasPrefix(element, "write") {
 				args := strings.Split(element, " ")
@@ -152,7 +152,7 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 				break ReadLoop
 
 			} else if strings.HasPrefix(element, "optimize1") {
-				optimize_falgo(file, db)
+				optimize_falgo(file, db, os.Args[1])
 
 			} else if strings.HasPrefix(element, "help") {
 				print_help()

@@ -78,20 +78,7 @@ func main() {
 	if _, err := os.Stat(filepath_db); os.IsNotExist(err) {
 		// IF NOT EXIST
 		fmt.Printf("[MAIN] Creating a binary file '%s'\n", filepath_db)
-		file, err := os.Create(filepath_db)
-		if err != nil {
-			log.Fatal("[MAIN] Error creating database: ", err)
-		}
-
-		// MARK: First Byte
-		var first_byte uint8 = 0
-		err = binary.Write(file, binary.LittleEndian, first_byte)
-		if err != nil {
-			log.Fatal("[MAIN] Error writing to database: ", err)
-		}
-		// move cursor_position to first_byte
-		cursor_position += binary_size(first_byte)
-
+		file := create_file(filepath_db)
 		// start the repl
 		repl(file, &db_structure)
 	} else if err != nil {
@@ -222,6 +209,25 @@ ReadLoop:
 			/*	MARKED: OPTIMIZE
 			 */
 			reorgWithTime(file, db)
+		} else if strings.HasPrefix(command, "time") {
+			/*	MARKED: CODE
+			 */
+			args := strings.Split(command, " ")
+			times := 1
+			if len(args) == 3 {
+				// 3rd argument is order so conver into int
+				t_ord, err := strconv.Atoi(args[2])
+				if err != nil {
+					fmt.Println("write <filename> <order|optional>")
+					continue ReadLoop
+				}
+				times = t_ord
+
+			} else if len(args) != 2 {
+				fmt.Println("time <filename> <times|otpional>")
+				continue ReadLoop
+			}
+			timed_execute(args[1], times)
 		} else if strings.HasPrefix(command, "code") {
 			/*	MARKED: CODE
 			 */
@@ -243,7 +249,7 @@ ReadLoop:
 	file.Close()
 }
 
-func readLog(db *DatabaseStructure, filename string) {
+func readLog(dbname string, db *DatabaseStructure, filename string) {
 	/* MARK: READLOG
 	Writing read order of each read file
 	filename	|	time
@@ -265,9 +271,8 @@ func readLog(db *DatabaseStructure, filename string) {
 		return
 	}
 
-	binaryName := filepath.Base(os.Args[1])
 	// name of binary file "filename"
-	csvPath := "./logs/" + logfilename(binaryName)
+	csvPath := "./logs/" + logfilename(dbname)
 	// name of csv file "./logs/filename.csv"
 
 	fileisnotexist := false
@@ -328,9 +333,8 @@ type EFileInfo struct {
 	MaxEdges    []string
 }
 
-func optimize_falgo(file *os.File, db *DatabaseStructure) {
-	binaryName := filepath.Base(os.Args[1])
-	csvPath := "./logs/" + binaryName + ".csv"
+func optimize_falgo(file *os.File, db *DatabaseStructure, binaryName string) {
+	csvPath := "./logs/" + logfilename(binaryName)
 	records := read_readlog(csvPath)
 	if records == nil {
 		return // nothing to optimize
@@ -396,6 +400,7 @@ MainLoop:
 	}
 	reorg(file, db, n_db)
 }
+
 func find_occurance(falgo_pslice []EFilePair, next_falgo string) []string {
 	if next_falgo == "" {
 		return nil
