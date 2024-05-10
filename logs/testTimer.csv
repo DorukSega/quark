@@ -8,3 +8,209 @@ FILE CLOSED,0s
 
 FILE CLOSED,0s
 
+
+test.txt,23.232µs
+
+FILE CLOSED,0s
+
+
+FILE CLOSED,0s
+
+
+test,44.704µs
+
+FILE CLOSED,0s
+
+
+test.txt,116.702µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+test.txt,0s
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+test.txt,19.817µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+test.txt,19.371µs
+test.txt,82.201µs
+
+FILE CLOSED,0s
+
+
+test.txt,142.589µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+test.txt,156.949µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+test.txt,68.814µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+FILE CLOSED,0s
+
+
+2.txt,65.008µs
+3.txt,60.446µs
+test.txt,83.702µs
+3.txt,114.916µs
+
+test.txt,37.865µs
+4.txt,35.34µs
+2.txt,37.251µs
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+- - - OPTIMIZER STARTED - - -,0s
+
+
+- - - OPTIMIZER ENDED - - -,0s
+
+
+FILE CLOSED,0s
+
+
+FILE CLOSED,0s
+

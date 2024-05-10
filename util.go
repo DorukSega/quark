@@ -3,7 +3,17 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/csv"
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"strconv"
 )
+
+func logfilename(filename string) string {
+	return fmt.Sprintf("%s.csv", filename)
+}
 
 func move_cursor(data any) {
 	size := binary.Size(data)
@@ -49,16 +59,47 @@ func record_contains(db *DatabaseStructure, filename string) bool {
 	return false
 }
 
-func falgo_contains(falgo *[]Falgo, filename string) bool {
-	for _, v := range *falgo {
-		return v.FileName == filename
+func string_contains(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
 	}
 	return false
 }
 
-func edges_contains(edges *[]Edge, to_filename string) bool {
-	for _, v := range *edges {
-		return v.ToFilename == to_filename
+func read_readlog(csvPath string) []Readlog {
+	file, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
+	if err != nil {
+		log.Fatal("[READLG] No log file:", err)
+		return nil
 	}
-	return false
+	defer file.Close()
+	reader := csv.NewReader(file)
+
+	_, err = reader.Read()
+	if err != nil {
+		log.Fatal("[READLG] Reader can't read:", err)
+		return nil
+	}
+
+	records := []Readlog{}
+	for {
+		raw_record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatal(err)
+		}
+		time, err2 := strconv.ParseInt(raw_record[1], 10, 64)
+		if err2 != nil {
+			log.Fatal(err)
+		}
+		records = append(records, Readlog{
+			FileName: raw_record[0],
+			Time:     time,
+		})
+	}
+	return records
 }

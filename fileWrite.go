@@ -152,9 +152,7 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 				break ReadLoop
 
 			} else if strings.HasPrefix(element, "optimize1") {
-				timerWriter("- - - OPTIMIZER STARTED - - -", 0)
-				reorg(file, db, optimize_falgo(db))
-				timerWriter("- - - OPTIMIZER ENDED - - -", 0)
+				optimize_falgo(file, db)
 
 			} else if strings.HasPrefix(element, "help") {
 				print_help()

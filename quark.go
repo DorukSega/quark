@@ -7,7 +7,6 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -66,21 +65,6 @@ func main() {
 	//	Database first argument error check
 	if flag.NArg() < 1 {
 		log.Fatal("Usage: quark <database.db>")
-	} else if name := flag.Arg(0); !strings.HasSuffix(name, ".bin") {
-		text := fmt.Sprintf(`
-		Error: The provided file '%s'
-		Does not have the expected '.bin' extension.
-		Please specify a binary file.
-		`, name)
-		log.Fatal(text)
-	} else if name == ".bin" {
-		text := fmt.Sprintf(`
-		Error: The provided file name '%s' is invalid.
-		Please specify a valid filename with 
-		an appropriate name before the '.bin' extension.
-		For example: 'test.bin'.
-		`, name)
-		log.Fatal(text)
 	}
 
 	filepath_db := flag.Arg(0)
@@ -168,23 +152,11 @@ ReadLoop:
 		fmt.Print("> ")
 		scanner.Scan()
 		command := scanner.Text()
-		/*	MARK: User input
-			Waits user input
-		*/
+
 		if strings.HasPrefix(command, "read") {
 			/*	MARK: READ
 				Todo: When cache optimization is implemented,
 				write only first to Stdout, cache rest
-
-				REDIS can be usefull
-
-				AI: The suggested optimization involves implementing a
-				caching mechanism. Instead of immediately writing all
-				the file contents to os.Stdout, you would read and
-				write only a portion of the file, while caching
-				the remaining contents in memory or on disk. Subsequent
-				reads would then fetch data from the cache rather
-				than re-reading the entire file.
 			*/
 			args := strings.Split(command, " ")
 			// ["read", "test.txt"]
@@ -294,9 +266,9 @@ func readLog(db *DatabaseStructure, filename string) {
 	}
 
 	binaryName := filepath.Base(os.Args[1])
-	// name of binary file "test.bin"
-	csvPath := "./logs/" + binaryName + ".csv"
-	// name of csv file "./logs/test.bin.csv"
+	// name of binary file "filename"
+	csvPath := "./logs/" + logfilename(binaryName)
+	// name of csv file "./logs/filename.csv"
 
 	fileisnotexist := false
 	_, err_stat := os.Stat(csvPath)
@@ -343,151 +315,144 @@ FALGO_RECORDS:
 			to_filename
 			weight
 */
-type Edge struct {
-	ToFilename string
-	Weight     int
+
+type FileMap map[string]EFileInfo // from filename to maximum edge
+
+type EFilePair struct {
+	Fname string
+	Info  EFileInfo
 }
 
-type Falgo struct {
-	FileName    string
+type EFileInfo struct {
 	TotalWeight int
-	Edges       []Edge
+	MaxEdges    []string
 }
 
-func optimize_falgo(db *DatabaseStructure) [][40]byte {
+func optimize_falgo(file *os.File, db *DatabaseStructure) {
 	binaryName := filepath.Base(os.Args[1])
 	csvPath := "./logs/" + binaryName + ".csv"
-
-	file, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
-	if err != nil {
-		log.Fatal("[OPTMZ1] Error opening CSV file:", err)
-		return nil
+	records := read_readlog(csvPath)
+	if records == nil {
+		return // nothing to optimize
 	}
-	defer file.Close()
-	reader := csv.NewReader(file)
-
-	_, err = reader.Read()
-	if err != nil {
-		log.Fatal("[OPTMZ1] Reader can't read:", err)
-		return nil
-	}
-	records := []Readlog{}
-	for {
-		raw_record, err := reader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatal(err)
-		}
-		time, err2 := strconv.ParseInt(raw_record[1], 10, 64)
-		if err2 != nil {
-			log.Fatal(err)
-		}
-		records = append(records, Readlog{
-			FileName: raw_record[0],
-			Time:     time,
-		})
-	}
-	//fmt.Println(records)
-	falgo_records := []Falgo{}
+	falgo_pslice := make([]EFilePair, 0)
+	// init all edges
 	for _, recdb := range db.Records {
-		falgo_records = append(falgo_records, Falgo{
-			FileName:    byteReadable(recdb.FileName),
-			TotalWeight: 0,
-			Edges:       []Edge{},
+		fnname := byteReadable(recdb.FileName)
+		falgo_pslice = append(falgo_pslice, EFilePair{
+			Fname: fnname,
+			Info:  calculate_occurance(records, fnname),
 		})
 	}
-
-	for ir, rec := range records {
-		if ir+1 == len(records) {
-			break
+	// sort them
+	sort.Slice(falgo_pslice, func(i, j int) bool {
+		return falgo_pslice[i].Info.TotalWeight > falgo_pslice[j].Info.TotalWeight
+	})
+	final_res := make([]string, 0)
+	if len(falgo_pslice) < 1 {
+		// TODO: add error log
+		return
+	}
+	falgo := falgo_pslice[0]
+	final_res = append(final_res, falgo.Fname)
+	var next_falgo = ""
+	if len(falgo.Info.MaxEdges) > 0 {
+		next_falgo = falgo.Info.MaxEdges[0]
+		final_res = append(final_res, next_falgo)
+	}
+	var new_pairs []string = nil
+MainLoop:
+	for {
+		new_pairs = find_occurance(falgo_pslice, next_falgo)
+		if new_pairs == nil {
+			for _, val := range falgo_pslice {
+				if !string_contains(final_res, val.Fname) {
+					new_pairs = find_occurance(falgo_pslice, val.Fname)
+					final_res = append(final_res, val.Fname)
+					break
+				}
+			}
+			if new_pairs == nil {
+				break MainLoop
+			}
 		}
-		for ix := range falgo_records {
-			fal := &falgo_records[ix]
-			if fal.FileName == rec.FileName {
-				rec_next := records[ir+1]
-				if fal.FileName == rec_next.FileName {
-					fal.TotalWeight++
-					break // break from upper for
-				}
-				// check if there is a edge, if so use
-				// else add a new
-				if edges_contains(&fal.Edges, rec_next.FileName) {
-					for iy := range fal.Edges {
-						edge := &fal.Edges[iy]
-						if edge.ToFilename == rec_next.FileName {
-							edge.Weight++
-							break
-						}
-					}
-				} else {
-					fal.Edges = append(fal.Edges, Edge{
-						ToFilename: rec_next.FileName,
-						Weight:     1,
-					})
-				}
-				fal.TotalWeight++
+		for _, nexter_fname := range new_pairs {
+			if nexter_fname == "" {
+				next_falgo = ""
+				break
+			}
+			if !string_contains(final_res, nexter_fname) {
+				final_res = append(final_res, nexter_fname)
+				next_falgo = nexter_fname
 				break
 			}
 		}
 	}
-	//fmt.Println(falgo_records)
+
 	n_db := [][40]byte{}
-	// start with largest total weight, go to largest edge
-	// continue until consumed, start again with the rest
-	for len(falgo_records) != 0 {
-		sort.Slice(falgo_records, func(i, j int) bool {
-			return falgo_records[i].TotalWeight > falgo_records[j].TotalWeight
-		})
-		falgo_recursive(&n_db, &falgo_records, 0)
+	fmt.Println(final_res)
+	for _, value := range final_res {
+		n_db = append(n_db, truncateString(value))
 	}
-	for _, v := range n_db {
-		fmt.Println(byteReadable(v))
-		//changes
-		timerWriter(byteReadable(v), 0)
+	reorg(file, db, n_db)
+}
+func find_occurance(falgo_pslice []EFilePair, next_falgo string) []string {
+	if next_falgo == "" {
+		return nil
 	}
-	return n_db
+	for _, val := range falgo_pslice {
+		if val.Fname != next_falgo {
+			continue
+		}
+		return val.Info.MaxEdges
+	}
+	return nil
 }
 
-func falgo_recursive(n_db *[][40]byte, falgo *[]Falgo, index int) {
-	val := (*falgo)[index]
-	sort.Slice(val.Edges, func(i, j int) bool {
-		return val.Edges[i].Weight > val.Edges[j].Weight
+func calculate_occurance(records []Readlog, fnname string) EFileInfo {
+	var total_weight = 0
+
+	var weight_map = make(map[string]int)
+	for ir, rec := range records {
+		cur_fname := rec.FileName
+		if cur_fname != fnname {
+			continue
+		}
+		if ir+1 == len(records) {
+			total_weight++
+			break
+		}
+		next_fname := records[ir+1].FileName
+		if cur_fname == next_fname {
+			total_weight++
+			continue
+		}
+		total_weight++
+		weight_map[next_fname] += 1
+	}
+
+	type Pair struct {
+		Key   string
+		Value int
+	}
+	var pairs []Pair
+	for k, v := range weight_map {
+		pairs = append(pairs, Pair{k, v})
+	}
+
+	sort.Slice(pairs, func(i, j int) bool {
+		return pairs[i].Value < pairs[j].Value
 	})
-	var selected_edge string = ""
-	for _, esel := range val.Edges {
-		if selected_edge != "" {
+
+	max_edges := make([]string, 3)
+	for ix, v := range pairs {
+		if ix > 2 {
 			break
 		}
-		for _, v := range *falgo {
-			if v.FileName == esel.ToFilename {
-				selected_edge = esel.ToFilename
-				break
-			}
-		}
+		max_edges[ix] = v.Key
 	}
-
-	// write
-	*n_db = append(*n_db, truncateString(val.FileName))
-
-	if selected_edge == "" {
-		*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
-		return
+	return EFileInfo{
+		TotalWeight: total_weight,
+		MaxEdges:    max_edges,
 	}
-	next_index := 0
-	for iy, nval := range *falgo {
-		if nval.FileName == selected_edge {
-			next_index = iy
-			break
-		}
-	}
-	if next_index != 0 {
-		falgo_recursive(n_db, falgo, next_index)
-	}
-	if index < 0 || index >= len(*falgo) {
-		fmt.Println("Error: Index is out of bounds")
-		return
-	}
-	*falgo = append((*falgo)[:index], (*falgo)[index+1:]...)
 }

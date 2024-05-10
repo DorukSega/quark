@@ -32,7 +32,7 @@ func reorgWithTime(file *os.File, db *DatabaseStructure) {
 	finishMessage := "- - - OPTIMIZER ENDED - - -"
 
 	timerWriter(startMessage, 0)
-	reorg(file, db, optimize_falgo(db))
+	optimize_falgo(file, db)
 	timerWriter(finishMessage, 0)
 }
 
