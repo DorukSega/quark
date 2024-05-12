@@ -111,7 +111,7 @@ func create_file(filepath_db string) *os.File {
 		log.Fatal("[MAIN] Error creating database: ", err)
 	}
 
-	// MARK: First Byte
+	// First Byte
 	var first_byte uint8 = 0
 	err = binary.Write(file, binary.LittleEndian, first_byte)
 	if err != nil {

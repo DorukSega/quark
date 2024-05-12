@@ -152,8 +152,7 @@ func codeExecuter(myOS *os.File, db *DatabaseStructure, filepath string) {
 				break ReadLoop
 
 			} else if strings.HasPrefix(element, "optimize1") {
-				optimize_falgo(file, db, os.Args[1])
-
+				optimize_algo1(file, db, get_occurance_slice(db, os.Args[1]))
 			} else if strings.HasPrefix(element, "help") {
 				print_help()
 
