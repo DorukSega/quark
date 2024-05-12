@@ -156,9 +156,9 @@ ReadLoop:
 			}
 			if err := read(file, db, args[1], os.Stdout); err != nil {
 				fmt.Println(err)
-				return
+				continue ReadLoop
 			}
-			readLog(os.Args[1], db, args[1]) // log to db.csv
+			write_readLog(os.Args[1], db, args[1]) // log to db.csv
 		} else if strings.HasPrefix(command, "memread") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
@@ -166,12 +166,15 @@ ReadLoop:
 				continue ReadLoop
 			}
 			var buffer bytes.Buffer
-			fmt.Println("Before: ", buffer.Len())
+			lenbefore := buffer.Len()
 			if err := read(file, db, args[1], &buffer); err != nil {
 				fmt.Println(err)
-				return
+				buffer.Reset()
+				debug.FreeOSMemory()
+				continue ReadLoop
 			}
-			readLog(os.Args[1], db, args[1])
+			write_readLog(os.Args[1], db, args[1])
+			fmt.Println("Before: ", lenbefore)
 			fmt.Println("After: ", buffer.Len())
 			buffer.Reset()
 			debug.FreeOSMemory()
@@ -236,7 +239,7 @@ ReadLoop:
 	file.Close()
 }
 
-func readLog(dbname string, db *DatabaseStructure, filename string) {
+func write_readLog(dbname string, db *DatabaseStructure, filename string) {
 	/* READLOG
 	Writing read order of each read file
 	filename	|	time
@@ -254,18 +257,25 @@ func readLog(dbname string, db *DatabaseStructure, filename string) {
 		}
 	}
 	if !fileCheck {
-		// if file is not exist exit
+		// if file does not exist, exit
 		return
 	}
 
 	// name of binary file "filename"
 	csvPath := "./logs/" + logfilename(dbname)
 	// name of csv file "./logs/filename.csv"
+	// create logs folder if it doesn't exist
+	_, err := os.Stat("./logs")
+	if os.IsNotExist(err) {
+		// Folder doesn't exist, create it
+		err := os.Mkdir("./logs", 0755)
+		if err != nil {
+			fmt.Println("Error creating folder:", err)
+			return
+		}
+	}
 
-	fileisnotexist := false
 	_, err_stat := os.Stat(csvPath)
-	fileisnotexist = os.IsNotExist(err_stat)
-	//Check files existance
 
 	// Open the CSV file in append mode
 	file, err := os.OpenFile(csvPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
@@ -278,8 +288,8 @@ func readLog(dbname string, db *DatabaseStructure, filename string) {
 	// Create a CSV writer
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
-
-	if fileisnotexist {
+	// Check file's existance
+	if os.IsNotExist(err_stat) {
 		headers := []string{"filename", "time"}
 		if err := writer.Write(headers); err != nil {
 			log.Fatal("Error writing headers to CSV:", err)
@@ -333,10 +343,14 @@ func get_occurance_slice(db *DatabaseStructure, binaryName string) []EFilePair {
 		fmt.Printf("[OPT] No algo to build")
 		return nil
 	}
+	fmt.Println(falgo_pslice)
 	return falgo_pslice
 }
 
 func optimize_algo1(file *os.File, db *DatabaseStructure, falgo_pslice []EFilePair) {
+	if falgo_pslice == nil {
+		return
+	}
 	final_res := make([]string, 0)
 
 	falgo := falgo_pslice[0]

@@ -620,7 +620,7 @@ func timed_execute(filepath string, n int) {
 			buffer = bytes.NewBuffer([]byte{1})
 			debug.FreeOSMemory()
 			if i == 0 {
-				readLog(db_name, &db, fname)
+				write_readLog(db_name, &db, fname)
 			}
 			dur_unopt += end_unopt.Sub(start_unopt)
 		}

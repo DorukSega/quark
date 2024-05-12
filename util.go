@@ -71,7 +71,7 @@ func string_contains(slice []string, value string) bool {
 func read_readlog(csvPath string) []Readlog {
 	file, err := os.OpenFile(csvPath, os.O_RDONLY, 0644)
 	if err != nil {
-		log.Fatal("[READLG] No log file:", err)
+		fmt.Println("[READLG] No log file:", err)
 		return nil
 	}
 	defer file.Close()
@@ -79,7 +79,7 @@ func read_readlog(csvPath string) []Readlog {
 
 	_, err = reader.Read()
 	if err != nil {
-		log.Fatal("[READLG] Reader can't read:", err)
+		fmt.Println("[READLG] Reader can't read:", err)
 		return nil
 	}
 
