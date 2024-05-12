@@ -489,6 +489,7 @@ func reorg(file *os.File, db *DatabaseStructure, new_rec [][40]byte) {
 	}
 
 	fmt.Println("[REORG] Reorganise complete")
+	print_dbstat(db)
 }
 
 func timed_execute(filepath string, n int) {

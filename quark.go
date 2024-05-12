@@ -343,7 +343,9 @@ func get_occurance_slice(db *DatabaseStructure, binaryName string) []EFilePair {
 		fmt.Printf("[OPT] No algo to build")
 		return nil
 	}
+
 	fmt.Println(falgo_pslice)
+
 	return falgo_pslice
 }
 
@@ -354,15 +356,19 @@ func optimize_algo1(file *os.File, db *DatabaseStructure, falgo_pslice []EFilePa
 	final_res := make([]string, 0)
 
 	falgo := falgo_pslice[0]
-	final_res = append(final_res, falgo.Fname)
+	final_res = append(final_res, falgo.Fname) // first
+
 	var next_falgo = ""
-	if len(falgo.Info.MaxEdges) > 0 {
+	if len(falgo.Info.MaxEdges) > 0 { // second
 		next_falgo = falgo.Info.MaxEdges[0]
-		final_res = append(final_res, next_falgo)
+		if next_falgo != "" {
+			final_res = append(final_res, next_falgo)
+		}
 	}
+
 	var new_pairs []string = nil
 MainLoop:
-	for {
+	for { // rest
 		new_pairs = find_occurance(falgo_pslice, next_falgo)
 		if new_pairs == nil {
 			for _, val := range falgo_pslice {
@@ -390,7 +396,7 @@ MainLoop:
 	}
 
 	n_db := [][40]byte{}
-	fmt.Println(final_res)
+	fmt.Printf("%+v\n", final_res)
 	for _, value := range final_res {
 		n_db = append(n_db, truncateString(value))
 	}
