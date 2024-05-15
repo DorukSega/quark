@@ -671,16 +671,21 @@ func timed_execute(filepath string, n int) {
 	debug.FreeOSMemory()
 
 	var dur_opt time.Duration
-
+	var start_opt time.Time
+	var end_opt time.Time
 	for i := 0; i < n; i++ {
 		for _, fname := range to_read {
 			var pdur_opt time.Duration
 			if opt_state == 2 {
 				pdur_opt = optimize_algo2(file, &db, fname, buffer, occurance_slice)
+				dur_opt += pdur_opt
 			} else {
+				start_opt = time.Now()
 				if !read(file, &db, fname, buffer) {
 					continue
 				}
+				end_opt = time.Now()
+				dur_opt += end_opt.Sub(start_opt)
 			}
 			if opt_state == 2 {
 				// 5 seconds wait, added to simulate a real usage,
@@ -691,7 +696,7 @@ func timed_execute(filepath string, n int) {
 			buffer.Reset()
 			buffer = bytes.NewBuffer([]byte{2})
 			debug.FreeOSMemory()
-			dur_opt += pdur_opt
+
 		}
 	}
 
