@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,7 +49,28 @@ type Readlog struct {
 	Time     int64
 }
 
+type FileMap map[string]EFileInfo // from filename to maximum edge
+
+type EFilePair struct {
+	Fname string
+	Info  EFileInfo
+}
+
+type EFileInfo struct {
+	TotalWeight int
+	MaxEdges    []string
+}
+
+// GLOBAL TYPES
 var cursor_position int64 = 0
+var last_fileinfo []EFilePair
+var opt2_flag bool = false
+var file_buffer_map = NewLimitedBufferMap(1024 * 1024 * 1024)
+
+// TODO: read queue that will prioritize user reads over caching
+// so only in idle, the program will cache next potential
+
+var DATABASE_LOCK sync.Mutex = sync.Mutex{}
 
 func main() {
 	flag.Parse()
@@ -57,6 +80,20 @@ func main() {
 	}
 
 	filepath_db := flag.Arg(0)
+	if filepath_db == "time" {
+		opt_file := flag.Arg(1)
+		opt_file = filepath.Clean(opt_file)
+		n := 1
+		var err error // atoi error
+		if flag.NArg() == 3 {
+			n, err = strconv.Atoi(flag.Arg(2))
+			if err != nil {
+				log.Fatal("Usage: quark time <file> <times>", err)
+			}
+		}
+		timed_execute(opt_file, n)
+		return
+	}
 	filepath_db = filepath.Clean(filepath_db)
 
 	db_structure := DatabaseStructure{
@@ -126,10 +163,10 @@ func print_dbstat(db *DatabaseStructure) {
 }
 
 func print_help() {
-	fmt.Println("\tread  	 <file> <order|optional>")
-	fmt.Println("\twrite  	 <file> <order|optional>")
-	fmt.Println("\tmemread   <file> <order|optional>")
-	fmt.Println("\ttime	     <file> <times|optional>")
+	fmt.Println("\tread  	 <file>")
+	fmt.Println("\treadio    <file>")
+	fmt.Println("\twrite  	 <file> 	 <order|optional>")
+	fmt.Println("\ttime	     code/<file> <times|optional>")
 	fmt.Println("\tdelete 	 <file>")
 	fmt.Println("\toptimize1")
 	fmt.Println("\toptimize2")
@@ -144,38 +181,56 @@ ReadLoop:
 		scanner.Scan()
 		command := scanner.Text()
 
-		if strings.HasPrefix(command, "read") {
-			/*	Todo: When cache optimization is implemented,
-				write only first to Stdout, cache rest
-			*/
+		if strings.HasPrefix(command, "readio") {
 			args := strings.Split(command, " ")
 			// read test.txt
 			if len(args) != 2 {
 				fmt.Println("open <filename>")
 				continue ReadLoop
 			}
-			if err := read(file, db, args[1], os.Stdout); err != nil {
-				fmt.Println(err)
+			if !read(file, db, args[1], os.Stdout) {
 				continue ReadLoop
 			}
 			write_readLog(os.Args[1], db, args[1]) // log to db.csv
-		} else if strings.HasPrefix(command, "memread") {
+		} else if strings.HasPrefix(command, "read") {
 			args := strings.Split(command, " ")
 			if len(args) != 2 {
 				fmt.Println("open <filename>")
 				continue ReadLoop
 			}
+
 			var buffer bytes.Buffer
 			lenbefore := buffer.Len()
-			if err := read(file, db, args[1], &buffer); err != nil {
-				fmt.Println(err)
-				buffer.Reset()
-				debug.FreeOSMemory()
-				continue ReadLoop
+
+			start_opt := time.Now()
+			if !opt2_flag {
+				if !read(file, db, args[1], &buffer) {
+					buffer.Reset()
+					debug.FreeOSMemory()
+					continue ReadLoop
+				}
+			} else {
+				if err := optimize_algo2(file, db, args[1], &buffer, nil); err != nil {
+					fmt.Println(err)
+					buffer.Reset()
+					debug.FreeOSMemory()
+					continue ReadLoop
+				}
 			}
+			end_opt := time.Now()
+			dur_opt := end_opt.Sub(start_opt)
+
 			write_readLog(os.Args[1], db, args[1])
-			fmt.Println("Before: ", lenbefore)
-			fmt.Println("After: ", buffer.Len())
+			var file_size int64
+			for _, rec := range db.Records {
+				if byteReadable(rec.FileName) == args[1] {
+					file_size = rec.Size
+				}
+			}
+			if lenbefore != 0 || buffer.Len() < lenbefore || file_size != int64(buffer.Len()) {
+				fmt.Printf("Inconsistency reading")
+			}
+			fmt.Printf("Time: %v\n", dur_opt)
 			buffer.Reset()
 			debug.FreeOSMemory()
 		} else if strings.HasPrefix(command, "write") {
@@ -206,13 +261,23 @@ ReadLoop:
 				fmt.Println("delete <filename>")
 				continue ReadLoop
 			}
-			delete(file, db, args[1])
+			core_delete(file, db, args[1])
 		} else if strings.HasPrefix(command, "close") || strings.HasPrefix(command, "exit") {
 			break ReadLoop
 		} else if strings.HasPrefix(command, "stat") {
 			print_dbstat(db)
 		} else if strings.HasPrefix(command, "optimize1") {
-			optimize_algo1(file, db, get_occurance_slice(db, os.Args[1])) // first opt
+			optimize_algo1(file, db, get_occurance_slice(db, os.Args[1])) // first opt, get files closer
+		} else if strings.HasPrefix(command, "optimize2") { // second opt, caching next common
+			if !opt2_flag {
+				last_fileinfo = get_occurance_slice(db, os.Args[1])
+				opt2_flag = true
+				fmt.Println("[REPL] OPT2 turned on")
+			} else {
+				fmt.Println("[REPL] OPT2 turned off")
+				opt2_flag = false
+			}
+
 		} else if strings.HasPrefix(command, "time") { // does a timed test
 			args := strings.Split(command, " ")
 			times := 1
@@ -307,18 +372,6 @@ func write_readLog(dbname string, db *DatabaseStructure, filename string) {
 	}
 }
 
-type FileMap map[string]EFileInfo // from filename to maximum edge
-
-type EFilePair struct {
-	Fname string
-	Info  EFileInfo
-}
-
-type EFileInfo struct {
-	TotalWeight int
-	MaxEdges    []string
-}
-
 func get_occurance_slice(db *DatabaseStructure, binaryName string) []EFilePair {
 	csvPath := "./logs/" + logfilename(binaryName)
 	records := read_readlog(csvPath)
@@ -344,8 +397,7 @@ func get_occurance_slice(db *DatabaseStructure, binaryName string) []EFilePair {
 		return nil
 	}
 
-	fmt.Println(falgo_pslice)
-
+	//fmt.Println(falgo_pslice)
 	return falgo_pslice
 }
 
@@ -401,6 +453,42 @@ MainLoop:
 		n_db = append(n_db, truncateString(value))
 	}
 	reorg(file, db, n_db)
+}
+
+// read with caching next
+func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst io.Writer, falgo_pslice []EFilePair) (err error) {
+	if falgo_pslice == nil {
+		falgo_pslice = last_fileinfo
+	}
+
+	if !read(file, db, filename, dst) {
+		return
+	}
+
+	if falgo_pslice == nil {
+		return
+	}
+	var next_file = ""
+	for _, val := range falgo_pslice {
+		if filename == val.Fname {
+			next_file = val.Info.MaxEdges[0]
+			break
+		}
+	}
+	if next_file != "" {
+		go read_next(file, db, next_file)
+	}
+	return
+}
+
+func read_next(file *os.File, db *DatabaseStructure, next_file string) {
+	var bytebuff bytes.Buffer
+	if !read(file, db, next_file, &bytebuff) {
+		return
+	}
+	file_buffer_map.Set(next_file, bytebuff.Bytes())
+	bytebuff.Reset()
+	debug.FreeOSMemory()
 }
 
 func find_occurance(falgo_pslice []EFilePair, next_falgo string) []string {

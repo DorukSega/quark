@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 )
 
 func logfilename(filename string) string {
@@ -120,4 +121,121 @@ func create_file(filepath_db string) *os.File {
 	// move cursor_position to first_byte
 	cursor_position += binary_size(first_byte)
 	return file
+}
+
+type Queue[T any] interface {
+	Enqueue(data T)
+	Dequeue() (T, bool)
+	Peek() (T, bool)
+	IsEmpty() bool
+}
+
+// SliceQueue implements the Queue interface using a slice
+type SliceQueue[T any] struct {
+	items []T
+}
+
+// NewSliceQueue creates a new SliceQueue
+func NewSliceQueue[T any]() *SliceQueue[T] {
+	return &SliceQueue[T]{}
+}
+
+// Enqueue adds an element to the back of the queue
+func (q *SliceQueue[T]) Enqueue(data T) {
+	q.items = append(q.items, data)
+}
+
+// Dequeue removes and returns the element at the front of the queue
+// Returns false if the queue is empty
+func (q *SliceQueue[T]) Dequeue() (T, bool) {
+	if q.IsEmpty() {
+		return *new(T), false
+	}
+	first := q.items[0]
+	q.items = q.items[1:]
+	return first, true
+}
+
+// Peek returns the element at the front of the queue without removing it
+// Returns false if the queue is empty
+func (q *SliceQueue[T]) Peek() (T, bool) {
+	if q.IsEmpty() {
+		return *new(T), false
+	}
+	return q.items[0], true
+}
+
+// IsEmpty checks if the queue is empty
+func (q *SliceQueue[T]) IsEmpty() bool {
+	return len(q.items) == 0
+}
+
+// BUFFER MAP
+
+type LimitedBufferMap struct {
+	m     map[string]*bytes.Buffer
+	mutex sync.Mutex
+	limit int // limit on total buffer size in bytes
+}
+
+// NewLimitedBufferMap creates a new LimitedBufferMap with the specified size limit.
+func NewLimitedBufferMap(limit int) *LimitedBufferMap {
+	if limit <= 0 {
+		panic("limit must be greater than 0")
+	}
+	return &LimitedBufferMap{
+		m:     make(map[string]*bytes.Buffer),
+		mutex: sync.Mutex{},
+		limit: limit,
+	}
+}
+
+// Set inserts a new string-buffer pair into the map, removing entries until enough space
+// is available if the size limit is reached.
+func (l *LimitedBufferMap) Set(key string, value []byte) {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	totalSize := l.totalSize()
+	if len(value) > l.limit {
+		return // error log here?
+	}
+	if totalSize+len(value) > l.limit {
+		l.removeUntilFits(totalSize + len(value))
+	}
+
+	// Create a new buffer and set the value
+	buffer := bytes.NewBuffer(value)
+	l.m[key] = buffer
+}
+
+// Get retrieves the bytes.Buffer associated with the given key.
+func (l *LimitedBufferMap) Get(key string) *bytes.Buffer {
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	return l.m[key]
+}
+
+// totalSize calculates the total size of all buffers in the map
+func (l *LimitedBufferMap) totalSize() int {
+	size := 0
+	for _, buffer := range l.m {
+		size += buffer.Len()
+	}
+	return size
+}
+
+// removeUntilFits removes entries from the map until the total size is less than the target size
+func (l *LimitedBufferMap) removeUntilFits(targetSize int) {
+	for totalSize := l.totalSize(); totalSize > targetSize && len(l.m) > 0; totalSize = l.totalSize() {
+		var smallestKey string
+		var smallestSize int
+		for key, buffer := range l.m {
+			if smallestSize == 0 || buffer.Len() < smallestSize {
+				smallestKey = key
+				smallestSize = buffer.Len()
+			}
+		}
+		delete(l.m, smallestKey)
+	}
 }
