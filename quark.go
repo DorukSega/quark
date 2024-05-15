@@ -482,6 +482,9 @@ func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst i
 }
 
 func read_next(file *os.File, db *DatabaseStructure, next_file string) {
+	if file_buffer_map.Get(next_file) != nil {
+		return
+	}
 	var bytebuff bytes.Buffer
 	if !read(file, db, next_file, &bytebuff) {
 		return
