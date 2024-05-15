@@ -65,7 +65,7 @@ type EFileInfo struct {
 var cursor_position int64 = 0
 var last_fileinfo []EFilePair
 var opt2_flag bool = false
-var file_buffer_map = NewLimitedBufferMap(1024 * 1024 * 1024)
+var file_buffer_map = make(map[string]*bytes.Buffer)
 
 // TODO: read queue that will prioritize user reads over caching
 // so only in idle, the program will cache next potential
@@ -210,8 +210,7 @@ ReadLoop:
 					continue ReadLoop
 				}
 			} else {
-				if err := optimize_algo2(file, db, args[1], &buffer, nil); err != nil {
-					fmt.Println(err)
+				if dur := optimize_algo2(file, db, args[1], &buffer, nil); dur == 0 {
 					buffer.Reset()
 					debug.FreeOSMemory()
 					continue ReadLoop
@@ -396,8 +395,11 @@ func get_occurance_slice(db *DatabaseStructure, binaryName string) []EFilePair {
 		fmt.Printf("[OPT] No algo to build")
 		return nil
 	}
-
-	//fmt.Println(falgo_pslice)
+	fmt.Println("------")
+	for _, falgo := range falgo_pslice {
+		fmt.Printf("%s (%d) -> %s\n", falgo.Fname, falgo.Info.TotalWeight, falgo.Info.MaxEdges[0])
+	}
+	fmt.Println("------")
 	return falgo_pslice
 }
 
@@ -456,14 +458,15 @@ MainLoop:
 }
 
 // read with caching next
-func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst io.Writer, falgo_pslice []EFilePair) (err error) {
+func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst io.Writer, falgo_pslice []EFilePair) (dur time.Duration) {
 	if falgo_pslice == nil {
 		falgo_pslice = last_fileinfo
 	}
-
+	start_opt := time.Now()
 	if !read(file, db, filename, dst) {
 		return
 	}
+	end_opt := time.Now()
 
 	if falgo_pslice == nil {
 		return
@@ -478,20 +481,21 @@ func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst i
 	if next_file != "" {
 		go read_next(file, db, next_file)
 	}
-	return
+	return end_opt.Sub(start_opt)
 }
 
 func read_next(file *os.File, db *DatabaseStructure, next_file string) {
-	if file_buffer_map.Get(next_file) != nil {
+	if file_buffer_map[next_file] != nil {
 		return
 	}
-	var bytebuff bytes.Buffer
-	if !read(file, db, next_file, &bytebuff) {
+	file_buffer_map[next_file] = bytes.NewBuffer([]byte{})
+
+	var bytebuff = file_buffer_map[next_file]
+	if !read(file, db, next_file, bytebuff) {
 		return
 	}
-	file_buffer_map.Set(next_file, bytebuff.Bytes())
-	bytebuff.Reset()
-	debug.FreeOSMemory()
+
+	fmt.Printf("Added %s - %d to the buffer\n", next_file, bytebuff.Len())
 }
 
 func find_occurance(falgo_pslice []EFilePair, next_falgo string) []string {

@@ -183,9 +183,10 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 		}
 	}
 
-	if buff := file_buffer_map.Get(filename); buff != nil {
-		if int64(buff.Len()) == file_size {
-			_, err := io.Copy(dst, buff)
+	if buff := file_buffer_map[filename]; buff != nil {
+		reader := bytes.NewReader(buff.Bytes())
+		if int64(reader.Len()) == file_size {
+			_, err := io.Copy(dst, reader)
 			if err != nil {
 				fmt.Printf("[READ] Failed reading from buffer: %v", err)
 				return false
@@ -671,22 +672,16 @@ func timed_execute(filepath string, n int) {
 
 	var dur_opt time.Duration
 
-	var start_opt time.Time
-	var end_opt time.Time
 	for i := 0; i < n; i++ {
 		for _, fname := range to_read {
-			start_opt = time.Now()
+			var pdur_opt time.Duration
 			if opt_state == 2 {
-				if err := optimize_algo2(file, &db, fname, buffer, occurance_slice); err != nil {
-					fmt.Println(err)
-					return
-				}
+				pdur_opt = optimize_algo2(file, &db, fname, buffer, occurance_slice)
 			} else {
 				if !read(file, &db, fname, buffer) {
 					continue
 				}
 			}
-			end_opt = time.Now()
 			if opt_state == 2 {
 				// 5 seconds wait, added to simulate a real usage,
 				// where caching will have time to catch up
@@ -696,7 +691,7 @@ func timed_execute(filepath string, n int) {
 			buffer.Reset()
 			buffer = bytes.NewBuffer([]byte{2})
 			debug.FreeOSMemory()
-			dur_opt += end_opt.Sub(start_opt)
+			dur_opt += pdur_opt
 		}
 	}
 
@@ -718,6 +713,12 @@ func timed_execute(filepath string, n int) {
 		fmt.Printf("[TIMED] can't remove file: %v\n", err)
 		return
 	}
-
+	for _, fpath := range to_write {
+		err = os.Remove(fpath)
+		if err != nil {
+			fmt.Printf("[TIMED] can't remove file: %v\n", err)
+			return
+		}
+	}
 	debug.FreeOSMemory()
 }
