@@ -66,9 +66,7 @@ var cursor_position int64 = 0
 var last_fileinfo []EFilePair
 var opt2_flag bool = false
 var file_buffer_map = make(map[string]*bytes.Buffer)
-
-// TODO: read queue that will prioritize user reads over caching
-// so only in idle, the program will cache next potential
+var IdleQueue = NewSliceQueue[QueueRecord]()
 
 var DATABASE_LOCK sync.Mutex = sync.Mutex{}
 
@@ -140,6 +138,7 @@ func main() {
 		print_dbstat(&db_structure)
 
 		repl(file, &db_structure)
+
 	}
 }
 
@@ -462,12 +461,14 @@ func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst i
 	if falgo_pslice == nil {
 		falgo_pslice = last_fileinfo
 	}
+	cold_read_request = true
 	start_opt := time.Now()
 	if !read(file, db, filename, dst) {
 		return
 	}
 	end_opt := time.Now()
-
+	cold_read_request = false
+	//fmt.Printf("read %s\n", filename)
 	if falgo_pslice == nil {
 		return
 	}
@@ -479,23 +480,106 @@ func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst i
 		}
 	}
 	if next_file != "" {
-		go read_next(file, db, next_file)
+		//fmt.Printf("queued %s\n", next_file)
+		IdleQueue.Enqueue(QueueRecord{FileName: next_file, SizeRead: 0})
+		//go read_next(file, db, next_file)
 	}
 	return end_opt.Sub(start_opt)
 }
 
-func read_next(file *os.File, db *DatabaseStructure, next_file string) {
-	if file_buffer_map[next_file] != nil {
-		return
-	}
-	file_buffer_map[next_file] = bytes.NewBuffer([]byte{})
+var cold_read_request bool = false
 
-	var bytebuff = file_buffer_map[next_file]
-	if !read(file, db, next_file, bytebuff) {
-		return
+const chunkSize = 1024
+
+func idle_loop(file *os.File, db *DatabaseStructure) {
+	for {
+		if IdleQueue.IsEmpty() || cold_read_request {
+			continue
+		}
+		if DATABASE_LOCK.TryLock() {
+			qitem, _ := IdleQueue.Peek()
+			total_read, file_size := read_next(file, db, qitem.FileName, qitem.SizeRead)
+			if total_read == file_size {
+				IdleQueue.Dequeue()
+			} else {
+				IdleQueue.items[0].SizeRead = total_read
+			}
+			//fmt.Println("Mutex is unlocked")
+			DATABASE_LOCK.Unlock()
+		} else {
+			time.Sleep(time.Second / 10)
+		}
+		//time.Sleep(1 * time.Second) // Sleep for a while before checking again
+	}
+}
+
+func read_next(file *os.File, db *DatabaseStructure, next_file string, sizeread int64) (total_read int64, file_size int64) {
+	// FROM CORE.READ //////////////
+	// fail if we didn't write any files yet
+	if db.RecordCount == 0 {
+		fmt.Println("[NEXT] Database has no files written")
+		return 0, file_size
+	}
+	// calculate the location of file in the database
+	var location int64 = binary_size(Record{})*int64(db.RecordCount) + binary_size(&db.RecordCount)
+	for r_count, record := range db.Records {
+		if record_name_compare(record.FileName, next_file) {
+			file_size = record.Size
+			break
+		}
+		location += record.Size
+		if r_count+1 == int(db.RecordCount) { // fail if you reached end
+			fmt.Println("[NEXT] No such file in database")
+			return 0, file_size
+		}
+	}
+	/////////////////////////////
+	location += sizeread // test this
+	_, err := file.Seek(location, io.SeekStart)
+	if err != nil {
+		fmt.Printf("[NEXT] Error seeking the location: %v", err)
+		return 0, file_size
 	}
 
-	fmt.Printf("Added %s - %d to the buffer\n", next_file, bytebuff.Len())
+	var bytebuff = bytes.NewBuffer([]byte{})
+	if buffy := file_buffer_map[next_file]; buffy != nil {
+		if file_buffer_map[next_file].Len() == int(file_size) {
+			return file_size, file_size
+		}
+	} else {
+		file_buffer_map[next_file] = bytebuff
+	}
+
+	for {
+		lcsize := chunkSize
+		if chunkSize+file_buffer_map[next_file].Len() > int(file_size) {
+			lcsize = int(file_size) - file_buffer_map[next_file].Len()
+		}
+		if lcsize == 0 {
+			break
+		}
+		buf := make([]byte, lcsize)
+
+		n, err := file.Read(buf)
+		if n > 0 {
+			file_buffer_map[next_file].Write(buf[:n])
+			total_read += int64(n)
+		}
+		if err != nil {
+			// test me
+			break
+		}
+		if cold_read_request {
+			//fmt.Printf("Cold read request detected. Added %s - %d to the buffer\n", next_file, file_buffer_map[next_file].Len())
+			return int64(file_buffer_map[next_file].Len()), file_size
+		}
+	}
+
+	if bytebuff.Len() == 0 {
+		return 0, file_size //unsure
+	}
+	//fmt.Printf("Added %s - %d to the buffer\n", next_file, file_buffer_map[next_file].Len())
+	return int64(file_buffer_map[next_file].Len()), file_size
 }
 
 func find_occurance(falgo_pslice []EFilePair, next_falgo string) []string {
