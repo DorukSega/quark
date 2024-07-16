@@ -105,7 +105,6 @@ func read_readlog(csvPath string) []Readlog {
 }
 
 func create_file(filepath_db string) *os.File {
-
 	file, err := os.Create(filepath_db)
 	if err != nil {
 		log.Fatal("[MAIN] Error creating database: ", err)
@@ -120,6 +119,11 @@ func create_file(filepath_db string) *os.File {
 	// move cursor_position to first_byte
 	cursor_position += binary_size(first_byte)
 	return file
+}
+
+type QueueRecord struct {
+	FileName string
+	SizeRead int64
 }
 
 type Queue[T any] interface {

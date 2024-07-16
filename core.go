@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	mrand "math/rand"
 	"os"
 	"runtime/debug"
 	"time"
@@ -191,19 +192,30 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 				fmt.Printf("[READ] Failed reading from buffer: %v", err)
 				return false
 			}
+			//fmt.Printf("full in cache %s\n", filename)
 			return true
+		} else {
+			_, err := io.Copy(dst, reader)
+			if err != nil {
+				fmt.Printf("[READ] Failed reading from buffer: %v", err)
+				return false
+			}
+			relen := reader.Size()
+			location += int64(relen)
+			file_size -= int64(relen)
+			//fmt.Printf("some in cache %s - %d\n", filename, relen)
 		}
 	}
 
 	// seek to the location
 	//fmt.Println("[READ] Read location for debug purposes", location)
 
-	new_offset, err := file.Seek(location, io.SeekStart)
+	_, err := file.Seek(location, io.SeekStart)
 	if err != nil {
 		fmt.Printf("[READ] Error seeking the location: %v", err)
 		return false
 	}
-	cursor_position = new_offset + file_size
+	//cursor_position = new_offset + file_size
 
 	// read and write to custom writer interface
 
@@ -546,6 +558,7 @@ func timed_execute(filepath string, n int) {
 		RecordCount: 0,
 		Records:     []Record{},
 	}
+	go idle_loop(file, &db)
 
 	code_file, err2 := os.OpenFile(filepath, os.O_RDONLY, 0644)
 	if err2 != nil {
@@ -688,10 +701,13 @@ func timed_execute(filepath string, n int) {
 				dur_opt += end_opt.Sub(start_opt)
 			}
 			if opt_state == 2 {
-				// 5 seconds wait, added to simulate a real usage,
+				// time wait, added to simulate a real usage,
 				// where caching will have time to catch up
-				// TODO: use idle caching instead
-				time.Sleep(time.Second)
+				// random duration between 100ms (0.1s) and 1s
+				min := 100 * time.Millisecond
+				max := 1 * time.Second
+				randomDuration := min + time.Duration(mrand.Int63n(int64(max-min)))
+				time.Sleep(randomDuration)
 			}
 			buffer.Reset()
 			buffer = bytes.NewBuffer([]byte{2})
