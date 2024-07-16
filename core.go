@@ -187,6 +187,7 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 	if buff := file_buffer_map[filename]; buff != nil {
 		reader := bytes.NewReader(buff.Bytes())
 		if int64(reader.Len()) == file_size {
+			cache_hits += 1
 			_, err := io.Copy(dst, reader)
 			if err != nil {
 				fmt.Printf("[READ] Failed reading from buffer: %v", err)
@@ -194,7 +195,7 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 			}
 			//fmt.Printf("full in cache %s\n", filename)
 			return true
-		} else {
+		} else { // continue queue read in cold read
 			_, err := io.Copy(dst, reader)
 			if err != nil {
 				fmt.Printf("[READ] Failed reading from buffer: %v", err)
@@ -206,7 +207,7 @@ func read(file *os.File, db *DatabaseStructure, filename string, dst io.Writer) 
 			//fmt.Printf("some in cache %s - %d\n", filename, relen)
 		}
 	}
-
+	cache_misses += 1
 	// seek to the location
 	//fmt.Println("[READ] Read location for debug purposes", location)
 
@@ -527,6 +528,8 @@ func reorg(file *os.File, db *DatabaseStructure, new_rec [][40]byte) {
 	print_dbstat(db)
 }
 
+var cache_hits, cache_misses int
+
 func timed_execute(filepath string, n int) {
 	// recreate database
 	// clear readlog
@@ -549,6 +552,8 @@ func timed_execute(filepath string, n int) {
 	// print results
 	db_name := "opt_test.bin"
 	os.Remove(db_name)
+
+	var avg_cache_hits, avg_cache_misses int
 
 	csvPath := "./logs/" + logfilename(db_name)
 	os.Remove(csvPath)
@@ -651,6 +656,7 @@ func timed_execute(filepath string, n int) {
 	var start_unopt time.Time
 	var end_unopt time.Time
 	for i := 0; i < n; i++ {
+		var n_dur_opt time.Duration
 		for _, fname := range to_read {
 			start_unopt = time.Now()
 			if !read(file, &db, fname, buffer) {
@@ -663,8 +669,14 @@ func timed_execute(filepath string, n int) {
 			if i == 0 {
 				write_readLog(db_name, &db, fname)
 			}
-			dur_unopt += end_unopt.Sub(start_unopt)
+			n_dur_opt += end_unopt.Sub(start_unopt)
 		}
+		if i == 0 {
+			dur_unopt = n_dur_opt
+		} else {
+			dur_unopt = (n_dur_opt + dur_unopt) / 2
+		}
+		fmt.Printf("[TIME] %d: %v\n", i+1, n_dur_opt)
 	}
 
 	buffer = bytes.NewBuffer([]byte{2})
@@ -678,6 +690,7 @@ func timed_execute(filepath string, n int) {
 		fmt.Println("-- Frequent-Neighbours Optimization --")
 	} else if opt_state == 2 {
 		occurance_slice = get_occurance_slice(&db, db_name)
+		cache_hits, cache_misses = 0, 0
 		fmt.Println("-- Next-Potential-Caching Optimization --")
 	}
 
@@ -687,57 +700,83 @@ func timed_execute(filepath string, n int) {
 	var start_opt time.Time
 	var end_opt time.Time
 	for i := 0; i < n; i++ {
+		var n_dur_opt time.Duration
 		for _, fname := range to_read {
 			var pdur_opt time.Duration
 			if opt_state == 2 {
 				pdur_opt = optimize_algo2(file, &db, fname, buffer, occurance_slice)
-				dur_opt += pdur_opt
+
 			} else {
 				start_opt = time.Now()
 				if !read(file, &db, fname, buffer) {
 					continue
 				}
 				end_opt = time.Now()
-				dur_opt += end_opt.Sub(start_opt)
+				pdur_opt = end_opt.Sub(start_opt)
 			}
+			n_dur_opt += pdur_opt
 			if opt_state == 2 {
 				// time wait, added to simulate a real usage,
 				// where caching will have time to catch up
 				// random duration between 100ms (0.1s) and 1s
 				min := 100 * time.Millisecond
-				max := 1 * time.Second
+				max := 1000 * time.Millisecond
 				randomDuration := min + time.Duration(mrand.Int63n(int64(max-min)))
 				time.Sleep(randomDuration)
 			}
 			buffer.Reset()
 			buffer = bytes.NewBuffer([]byte{2})
 			debug.FreeOSMemory()
-
 		}
+		if i == 0 {
+			dur_opt += n_dur_opt
+			if opt_state == 2 {
+				avg_cache_hits += cache_hits
+				avg_cache_misses += cache_misses
+			}
+		} else {
+			dur_opt = (n_dur_opt + dur_opt) / 2
+			if opt_state == 2 {
+				avg_cache_hits = (avg_cache_hits + cache_hits) / 2
+				avg_cache_misses = (avg_cache_misses + cache_misses) / 2
+			}
+		}
+		for k := range file_buffer_map {
+			delete(file_buffer_map, k)
+		}
+		file_buffer_map = make(map[string]*bytes.Buffer)
+		debug.FreeOSMemory()
+		fmt.Printf("[TIME] %d: %v\n", i+1, n_dur_opt)
+		if opt_state == 2 {
+			fmt.Printf("  Cache Hits: %d, Cache Misses: %d\n", cache_hits, cache_misses)
+		}
+		cache_hits, cache_misses = 0, 0
 	}
 
 	buffer.Reset()
-
-	fmt.Printf("[TIME] Before Optimization: %v\n", dur_unopt)
-	fmt.Printf("[TIME] After Optimization: %v\n", dur_opt)
-	fmt.Printf("[TIME]  %d%% Faster\n", (((dur_unopt - dur_opt) * 100) / dur_unopt))
-
+	fmt.Println("[TIME]")
+	fmt.Printf("  Before Optimization: %v\n", dur_unopt)
+	fmt.Printf("  After Optimization: %v\n", dur_opt)
+	fmt.Printf("  %d%% Faster\n", (((dur_unopt - dur_opt) * 100) / dur_unopt))
+	if opt_state == 2 {
+		fmt.Printf("  AVG. Cache Hits: %d, AVG. Cache Misses: %d\n", avg_cache_hits, avg_cache_misses)
+	}
 	file.Close()
 	err := os.Remove(db_name)
 	if err != nil {
-		fmt.Printf("[TIMED] can't remove file: %v\n", err)
+		fmt.Printf("[TIME] can't remove file: %v\n", err)
 		return
 	}
 
 	err = os.Remove(csvPath)
 	if err != nil {
-		fmt.Printf("[TIMED] can't remove file: %v\n", err)
+		fmt.Printf("[TIME] can't remove file: %v\n", err)
 		return
 	}
 	for _, fpath := range to_write {
 		err = os.Remove(fpath)
 		if err != nil {
-			fmt.Printf("[TIMED] can't remove file: %v\n", err)
+			fmt.Printf("[TIME] can't remove file: %v\n", err)
 			return
 		}
 	}
