@@ -11,9 +11,9 @@ Run `go build -o quark` to build the project into an executable.
 There are two ways to start the project:
 
 ### 1. Testing Mode
-This mode just starts the tests and prints the results.
+This mode just starts the test cases and prints the results.
 
-Following codes run the optimization 5 times and compares the time difference with the unoptimized version.
+Following code snippets runs the optimization 5 times and compares the time difference with the unoptimized version.
 
 Files inside the code folder are needed to run these tests
 since they provide the test scenario.
@@ -27,9 +27,9 @@ quark time code/opt2.txt 5
 ``` 
 
 ### 2. Playground Mode
-This is a mode made to be able to manually test the system.
+This is a mode designed to be able to manually test the system.
 
-To start in this mode, write `quark DatabaseName.db`.
+To start in this mode, write `quark {DatabaseName}.db`.
 
 Following are the commands one can use in this mode
 ```
