@@ -489,7 +489,7 @@ func optimize_algo2(file *os.File, db *DatabaseStructure, filename string, dst i
 
 var cold_read_request bool = false
 
-const chunkSize = 1024
+const chunkSize = 1048576
 
 func idle_loop(file *os.File, db *DatabaseStructure) {
 	for {
